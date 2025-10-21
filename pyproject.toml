@@ -1,0 +1,18 @@
+[project]
+name = "vector-search-hse"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.1",
+]
+research = [
+    "nltk>=3.9.2",
+    "notebook>=7.4.7",
+    "pandas>=2.3.3",
+    "scikit-learn>=1.7.2",
+]
