@@ -4,15 +4,29 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "huggingface-hub>=0.36.0",
+    "python-dotenv>=1.1.1",
+]
 
 [dependency-groups]
 dev = [
     "ruff>=0.14.1",
 ]
+nlp = [
+    "bertopic[spacy]>=0.17.3",
+    "fast-langdetect>=1.0.0",
+    "gensim>=4.4.0",
+    "pyldavis>=3.4.1",
+    "spacy>=3.8.7",
+]
 research = [
+    "fasttext>=0.9.3",
     "nltk>=3.9.2",
     "notebook>=7.4.7",
     "pandas>=2.3.3",
+    "pyarrow>=21.0.0",
     "scikit-learn>=1.7.2",
+    "seaborn>=0.13.2",
+    "tqdm>=4.67.1",
 ]
