@@ -7,14 +7,13 @@ from fastembed import ImageEmbedding, TextEmbedding
 
 
 class QdrantSearchEngine:
-
     def __init__(
         self,
         vector_client: QdrantClient,
     ) -> None:
         self._vectors = vector_client
-        self._txt = TextEmbedding('Qdrant/clip-ViT-B-32-text')
-        self._img = ImageEmbedding('Qdrant/clip-ViT-B-32-vision')
+        self._txt = TextEmbedding("Qdrant/clip-ViT-B-32-text")
+        self._img = ImageEmbedding("Qdrant/clip-ViT-B-32-vision")
 
     def get_text_embedding(
         self,
@@ -28,7 +27,6 @@ class QdrantSearchEngine:
         limit: Optional[int] = 10,
     ) -> Any:
         text_embedding = self.get_text_embedding(text)
-
         query_response = self._search(text_embedding, limit)
 
         return query_response.points

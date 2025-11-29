@@ -1,13 +1,22 @@
-from pydantic import BaseModel
+import uuid
+
+from pydantic import (
+    BaseModel,
+    Field,
+)
 from typing import List
 
 
-class ImageInfoSchema(BaseModel):
-    id: str
+class BaseInfoClass(BaseModel):
+    id: str = Field(default_factory=lambda: uuid.uuid4().hex)
+
+
+class FrameInfo(BaseInfoClass):
+    time: float
     path: str
+    video_id: str
 
 
-class VideoInfoSchema(BaseModel):
-    id: str
+class VideoInfo(BaseInfoClass):
     video_path: str
-    images: List[ImageInfoSchema]
+    frames: List[FrameInfo] = Field(default_factory=list)

@@ -18,3 +18,10 @@ dc.up:
 
 dc.down:
 	@docker compose down
+
+
+db.migrate:
+	@yoyo apply --database ${DB_DSN} ./migrations
+
+db.rollback:
+	@yoyo rollback --database ${DB_DSN} ./migrations

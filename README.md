@@ -41,3 +41,11 @@ uv install
 ```shell
 uv venv
 ```
+
+
+## CLI
+
+
+```shell
+python -m 
+```
