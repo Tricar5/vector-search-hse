@@ -1,41 +1,13 @@
-import logging
 import pathlib
 import pickle
 from typing import Optional
-from tqdm import tqdm
 
 import numpy as np
 
-from vs.indexers.local import LocalIndexPipeline, Embedder
-from vs.storage.local import LocalIndexStorage
-from vs.indexers._local import PlainVideoFramesIndexer
-from vs.storages._local import LocalVideoInfoStorage
+from vs._local.indexer import PlainVideoFramesIndexer
+from vs._local.storage import LocalVideoInfoStorage
 from vs.utils import find_all_files_with_pattern
 from vs.video_file import VideoFilesProcessor
-
-logger = logging.getLogger(__name__)
-
-
-def local_index_pipe(
-    video_dir: str = 'data/video',
-    video_pattern: str = '*.MOV',
-    frame_rate: float = 1.0,
-    batch_size: int = 32,
-    index_path: str = 'index.pickle',
-    metadata_path: str = 'metadata.pickle',
-) -> None:
-    video_files = find_all_files_with_pattern(
-        pattern=video_pattern,
-        folder=pathlib.Path(video_dir),
-    )
-    embedder = Embedder(batch_size=batch_size)
-    storage = LocalIndexStorage(index_path=index_path, metadata_path=metadata_path)
-    indexer = LocalIndexPipeline(
-        frame_rate=frame_rate,
-        embedder=embedder,
-        storage=storage
-    )
-    indexer.execute(video_files)
 
 
 def local_indexing_from_frames(

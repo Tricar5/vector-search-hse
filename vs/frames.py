@@ -46,6 +46,25 @@ def iter_video_frames(
         cap.release()
 
 
+def open_and_load_frame(meta_, thumbnail_size=240):
+    file_name, frame_number = meta_
+    if frame_number == -1:
+        return cv2.imread(file_name), -1
+
+    cap = cv2.VideoCapture(file_name)
+    fps = round(cap.get(cv2.CAP_PROP_FPS))
+    cap.set(cv2.CAP_PROP_POS_FRAMES, int(frame_number))
+    ret, frame = cap.read()
+    cap.release()
+
+    original_height, original_width, _ = frame.shape
+    aspect_ratio = thumbnail_size / max(original_height, original_width)
+    new_width, new_height = original_width * aspect_ratio, original_height * aspect_ratio
+    frame = cv2.resize(frame, (int(new_width), int(new_height)))
+
+    return (frame, fps)
+
+
 def extract_frame_by_its_pos(
     file_path: str,
     pos: int,

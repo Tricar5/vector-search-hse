@@ -1,7 +1,8 @@
 from typing import Optional
 from typer import Typer
 
-from vs.pipelines.local import local_index_pipe, local_indexing_from_frames, local_frames_pipe
+from vs.local.pipeline import local_index_pipe, local_thumbnails
+from vs._local.pipe import local_indexing_from_frames, local_frames_pipe
 
 app = Typer()
 
@@ -52,9 +53,10 @@ def make_local_index(
     video_dir: str = 'data/video',
     video_pattern: str = '*.MOV',
     frame_rate: float = 1.0,
-    batch_size: int = 32,
-    index_path: str = 'index.pickle',
-    frames_meta_path: str = 'metadata.pickle',
+    batch_size: int = 128,
+    index_path: str = 'index.pkl',
+    frames_meta_path: str = 'metadata.pkl',
+    limit: Optional[int] = None
 ) -> None:
     local_index_pipe(
         video_dir=video_dir,
@@ -63,6 +65,21 @@ def make_local_index(
         batch_size=batch_size,
         index_path=index_path,
         metadata_path=frames_meta_path,
+        limit=limit,
+    )
+
+
+@app.command(
+    'local_thumbnail',
+    help='Создание локальных превью',
+)
+def make_local_index(
+    metadata_path: str = 'metadata.pkl',
+    thumbnail_path: str = 'thumbnails.pkl',
+) -> None:
+    local_thumbnails(
+        metadata_path=metadata_path,
+        thumbnail_path=thumbnail_path,
     )
 
 

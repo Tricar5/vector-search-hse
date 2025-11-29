@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Upload Multiple Files : GFG</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f7f7f7;
+            margin: 0;
+            padding: 20px;
+        }
+        h2 {
+            margin-top: 0px;
+        }
+        form {
+            background: #fff;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            width: 300px;
+        }
+        input[type="file"],
+        input[type="text"] {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        input[type="submit"] {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        input[type="submit"]:hover {
+            background: #45a049;
+        }
+        .gallery {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 10px;
+			margin-top: 30px;
+		}
+		.gallery img {
+			width: 200px;
+			height: 300px;
+			object-fit: cover;
+			border-radius: 6px;
+			box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+		}
+		#imgModal {
+			display:none; 
+			position:fixed; 
+			top:0; 
+			left:0; 
+			width:100%; 
+			height:100%;
+	        background:rgba(0,0,0,0.8); 
+	        justify-content:center; 
+	        align-items:center; 
+	        z-index:9999;
+		}
+		#imgModal img {
+			max-width:90%; 
+			max-height:90%; 
+			object-fit:contain; 
+			border-radius:8px; 
+			display:none;
+		}
+		#imgModal video {
+			max-width:90%; 
+			max-height:90%; 
+			object-fit:contain; 
+			border-radius:8px; 
+			display:none;
+		}
+    </style>
+</head>
+<body>
+	<div>
+	    <form action="/load_image" method="POST" enctype="multipart/form-data" style="display: inline-block;">
+	    	<h2>Upload an Image</h2>
+	        <input type="file" name="file" required />
+	        <input type="submit" value="Upload" />
+	    </form>
+	    <form action="/load_text" method="POST" enctype="multipart/form-data" style="display: inline-block;">
+	    	<h2>Upload Text</h2>
+	        <input type="text" name="text" required />
+	        <input type="text" name="anti" />
+	        <input type="submit" value="Upload" />
+	    </form>
+    </div>
+
+    <div class="gallery">
+	    {% for key, img, fps in frames %}
+	        <div>
+	            <img 
+	                src="{{ img }}&thumbnail_size=240"
+	                data-image-path="{{ img }}"
+	                data-video-path="{{ key }}"
+	                data-frame-start="{{ used_videos[key][0] }}"
+	                data-frame-end="{{ used_videos[key][1] }}"
+	                data-fps="{{ fps }}"
+	                style="cursor:pointer;"
+	            />
+	            <p>{{ used_videos[key][2] }}</p>
+	        </div>
+	    {% endfor %}
+	</div>
+
+	<div id="imgModal">
+	    
+	    <!-- Видео (скрыто по умолчанию) -->
+	    <video id="modalVideo" controls preload="none" style="display:none;" onloadstart="this.volume=0.1"></video>
+
+	    <!-- Изображение (скрыто по умолчанию) -->
+	    <img id="modalImg">
+	</div>
+
+
+	<script>
+	    const modal = document.getElementById('imgModal');
+	    const modalImg = document.getElementById('modalImg');
+	    const modalVideo = document.getElementById('modalVideo');
+
+	    const imgs = document.querySelectorAll('.gallery img');
+
+	    imgs.forEach(img => {
+	        img.addEventListener('click', () => {
+
+	            const fps = parseFloat(img.dataset.fps);
+	            const path = img.dataset.videoPath;
+	            const fs = img.dataset.frameStart;
+	            const fe = img.dataset.frameEnd;
+	            const imgpath = img.dataset.imagePath;
+
+	            modal.style.display = 'flex';
+
+	            if ((fps !== -1) && (fs !== fe)) {
+	                // показать видео
+	                modalImg.style.display = 'none';
+	                modalVideo.style.display = 'block';
+	                
+	                modalVideo.src =
+	                    `/video_segment?path=${encodeURIComponent(path)}&frame_start=${fs}&frame_end=${fe}&fps=${fps}`;
+	                
+	                modalVideo.load();
+	                modalVideo.play();
+	            } else {
+	                // показать картинку
+	                modalVideo.pause();
+	                modalVideo.src = "";
+	                modalVideo.style.display = 'none';
+
+	                modalImg.style.display = 'block';
+	                modalImg.src = imgpath;
+	            }
+	        });
+	    });
+
+	    // клик вне области — закрыть
+	    modal.addEventListener('click', (e) => {
+	        if (e.target === modal) {
+
+	            modalVideo.pause();
+	            modalVideo.src = "";
+	            modalVideo.style.display = 'none';
+
+	            modalImg.style.display = 'none';
+	            modal.style.display = 'none';
+	        }
+	    });
+	</script>
+</body>
+</html>
