@@ -9,13 +9,14 @@ from io import BytesIO
 from vs.local.engine import load_search_index
 from service.utils import render_main_page
 from vs.frames import open_and_load_frame
+from service.settings import config
 
 app = Flask(__name__)
 
 search_index = load_search_index(
-    index_path='index.pkl',
-    metadata_path='metadata.pkl',
-    thumbnail_path='thumbnails.pkl',
+    index_path=config.index_path,
+    metadata_path=config.metadata_path,
+    thumbnail_path=config.thumbnail_path,
 )
 
 

@@ -3,7 +3,7 @@ import pickle
 from typing import Optional
 
 import numpy as np
-
+from tqdm import tqdm
 from vs._local.indexer import PlainVideoFramesIndexer
 from vs._local.storage import LocalVideoInfoStorage
 from vs.utils import find_all_files_with_pattern
@@ -57,7 +57,7 @@ def local_frames_pipe(
     )
     video_records = []
 
-    for video_path in video_files:
+    for video_path in tqdm(video_files):
         video = vp.process_single_video(video_path)
         video_records.append(video)
 
