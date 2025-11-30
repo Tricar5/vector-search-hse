@@ -49,7 +49,6 @@ class LocalSearchEngine:
     ) -> torch.Tensor:
         with torch.no_grad():
             data = self.model.encode_text(clip.tokenize([text]))
-        data = torch.sign(data) * torch.pow(torch.abs(data), 0.25)
         data /= torch.linalg.norm(data)
         return data
 
@@ -59,6 +58,7 @@ class LocalSearchEngine:
     ) -> torch.Tensor:
         with torch.no_grad():
             data = self.model.encode_image(self.preprocessor(file).unsqueeze(0))
+        data = torch.sign(data) * torch.pow(torch.abs(data), 0.25)
         data /= torch.linalg.norm(data)
 
         return data
