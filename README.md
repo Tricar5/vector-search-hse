@@ -41,3 +41,12 @@ uv install
 ```shell
 uv venv
 ```
+
+
+## CLI
+
+
+# Создание локального
+```shell
+python -m vs.
+```
