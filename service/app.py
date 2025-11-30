@@ -59,7 +59,7 @@ def upload_text():
         return redirect('/')
     video_descriptions, used_videos = search_index.query_videos_by_tensor(
         data,
-        video_threshold=0.20,
+        video_threshold=0.26,
         frame_threshold=0.2,
         percentile=0.8,
     )

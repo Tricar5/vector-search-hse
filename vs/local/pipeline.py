@@ -1,41 +1,51 @@
 import logging
 import pathlib
 import pickle
-from typing import Optional
+from typing import Union, List, Tuple, Set
 
-from vs.frames import open_and_load_frame
-from vs.local.indexer import LocalIndexPipeline
+from scipy.linalg._decomp_interpolative import NDArray
+from tqdm import tqdm
+
+from vs.frames import open_and_load_frame, iter_video_frames
 from vs.embedder.clip import ClipEmbedder
-from vs.utils import find_all_files_with_pattern
 
 logger = logging.getLogger(__name__)
 
 
+def embed_one_video(
+    embedder: ClipEmbedder,
+    video_path: Union[str, pathlib.Path],
+    rate: float = 1,
+) -> Tuple[List[NDArray], List[Tuple[str, int]]]:
+    list_frames = []
+    list_meta = []
+    for frame, pos in iter_video_frames(video_path, rate):
+        list_frames.append(frame)
+        list_meta.append((video_path, pos))
+
+    embeddings = embedder.embed_images(list_frames)
+    return embeddings, list_meta
+
+
 def local_index_pipe(
-    video_dir: str,
-    video_pattern: str,
+    video_files: List[str],
     frame_rate: float,
     batch_size: int,
     index_path: str,
     metadata_path: str,
-    normalize: bool = True,
 ) -> None:
-    video_files = find_all_files_with_pattern(
-        pattern=video_pattern,
-        folder=pathlib.Path(video_dir),
-    )
-
     # Build index classes
     embedder = ClipEmbedder(
         batch_size=batch_size,
-        normalize=normalize,
-    )
-    indexer = LocalIndexPipeline(
-        frame_rate=frame_rate,
-        embedder=embedder,
     )
 
-    all_embeddings, all_meta = indexer.make_index_for_videofiles(video_files)
+    all_embeddings = []
+    all_meta = []
+
+    for video in tqdm(video_files):
+        embeddings, meta = embed_one_video(embedder, video, frame_rate)
+        all_embeddings.extend(embeddings)
+        all_meta.extend(meta)
 
     # Saving to local
     with open(index_path, 'wb') as file:

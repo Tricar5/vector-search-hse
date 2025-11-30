@@ -10,11 +10,9 @@ class ClipEmbedder:
     def __init__(
         self,
         batch_size: int,
-        normalize: bool = True,
     ) -> None:
         self.model, self.preprocessor = clip.load('ViT-B/32')
         self.batch_size = batch_size
-        self.normalize = normalize
 
     def encode_images(
         self,
@@ -50,6 +48,4 @@ class ClipEmbedder:
         self,
         emb: torch.Tensor,
     ) -> torch.Tensor:
-        if self.normalize:
-            emb = emb / torch.linalg.norm(emb)
-        return emb
+        return emb / torch.linalg.norm(emb)

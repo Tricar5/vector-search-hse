@@ -111,6 +111,7 @@ def make_frames_from_video(
     fps = round(cap.get(cv2.CAP_PROP_FPS))
     # CAP_rate = FPS * rate (знаменатель извлечения в секундах )
     cap_rate = (fps * rate)
+    video_name = str(save_folder).split('/')[-1]
     while True:
         # Capture frame-by-frame
         ret, frame = cap.read()
@@ -119,7 +120,7 @@ def make_frames_from_video(
             break
         if i % cap_rate == 0:
             frame_point = i // fps
-            frame_filename = f'{i + 1 // fps:06}.png'
+            frame_filename = f'{video_name}__{i + 1 // fps:06}.png'
             frame_filepath = str(save_folder / frame_filename)
             cv2.imwrite(frame_filepath, frame)
             frames_path.append(frame_filepath)
