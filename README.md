@@ -45,8 +45,27 @@ uv venv
 
 ## CLI
 
+Получение списка доступных команд
 
-# Создание локального
 ```shell
-python -m vs.
+python -m vs.cli --help
 ```
+
+
+### Локальный индекс
+
+# Создание локального индекса
+```shell
+python -m vs.local_index_pipe --help
+```
+
+# Создание метадаты на базе индекса
+```shell
+python -m vs.local_thumbnail --help
+```
+
+По умолчанию создаются файлы:
+
+- `index.pkl`
+- `metadata.pkl`
+- `thumbnail.pkl`
