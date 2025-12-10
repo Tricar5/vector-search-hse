@@ -1,47 +1,26 @@
-from dotenv import (
-    find_dotenv,
-    load_dotenv,
-)
-from pydantic import Field
-from pydantic_settings import (
-    BaseSettings,
-    SettingsConfigDict,
-)
+from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class _Settings(BaseSettings):
+class AppSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        case_sensitive=False,
+        env_file='.env',
+        env_file_encoding='utf-8',
+        arbitrary_types_allowed=True,
         extra='ignore',
     )
 
-
-class AuthConfig(_Settings):
-    auth_public_key: str
-    auth_private_key: str
-
-
-class DbConfig(_Settings):
-    db_dsn: str
-    min_db_pool_size: int = 2
-    max_db_pool_size: int = 5
-
-    @property
-    def async_db_dsn(self) -> str:
-        return self.db_dsn.replace('postgresql://', 'postgresql+asyncpg://')
+    APP_NAME: str = 'VectorSearchApplication'
+    API_PORT: int = 8000
+    ENGINE_CONFIG_PATH: str = 'engines.yml'
+    POSTGRES_DSN: str
 
 
-class AppSettings(_Settings):
-    app_name: str  # = 'VectorSearchApp'
-    engine_config_path: str  # = 'engines.yml'
-    auth: AuthConfig = Field(default_factory=AuthConfig)
-    db: DbConfig = Field(default_factory=DbConfig)
-
-
+@lru_cache(maxsize=1)
 def get_settings(env_file: str = '.env') -> AppSettings:
     """Settings Factory"""
-    load_dotenv(find_dotenv(env_file))
-    return AppSettings()
+    return AppSettings(_env_file=env_file)
 
 
-settings = get_settings()
+settings = get_settings(env_file='.env')

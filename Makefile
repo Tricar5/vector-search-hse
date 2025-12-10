@@ -1,52 +1,23 @@
-include: .env
-
-.PHONY: research.install dev.install lint env run
-
-args := $(wordlist 2, 100, $(MAKECMDGOALS))
-ifndef args
-MESSAGE = "No such command (or you pass two or many targets to ). List of possible commands: make help"
-else
-MESSAGE = "Done"
-endif
+.PHONY: research.install dev.install
 
 
 env:
-	cp .env.default .env
+	uv venv
+
+research.install:
+	uv sync --group research
 
 
 dev.install:
-	poetry install --with dev
+	uv sync --group dev
 
-research.install:
-	poetry install --with research
 
 lint:
-	@isort ./service/ ./tests/  --settings-file ./setup.cfg
-	@black ./service/ ./tests/ --config pyproject.toml
-	@flake8 --config ./setup.cfg ./service/
-	@flake8 --config ./flake8.tests.ini ./tests/
-	@mypy ./service/ --ignore-missing-imports --config-file setup.cfg
+	ruff check ./service --fix
 
-
-
-dc.up:
-	docker compose up -d
-
-dc.down:
-	docker compose down
-
-
-# Migrations
-
-db.revision:
-	cd service/db && alembic revision --autogenerate -m $(args)
-
-db.migrate:
-	cd service/db && alembic upgrade head
-
-db.rollback:
-	cd service/db && alembic downgrade -1
+format:
+	ruff format ./service
 
 
 run:
-	python -m service
+	uvicorn

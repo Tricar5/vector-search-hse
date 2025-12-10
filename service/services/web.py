@@ -1,2 +1,3 @@
 class WebService:
-    """Class for working with web services"""
+    def __init__(self) -> None:
+        pass
