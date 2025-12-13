@@ -4,5 +4,5 @@ import yaml
 
 
 def load_yml_config(config_path: str) -> dict[str, Any]:
-    with open(config_path) as f:
-        return yaml.safe_load(f)
+    with open(config_path) as ff:
+        return yaml.safe_load(ff)

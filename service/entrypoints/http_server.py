@@ -1,7 +1,10 @@
 from fastapi import FastAPI
 
 from service.entrypoints.routes.web import web_router
-from service.settings import AppSettings, settings
+from service.settings import (
+    AppSettings,
+    settings,
+)
 
 
 def create_app(settings: AppSettings) -> FastAPI:

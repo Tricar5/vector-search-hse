@@ -1,0 +1,16 @@
+version: '3.9'
+
+name: vector-search
+services:
+  db:
+    image: postgres:19
+    restart: unless-stopped
+    networks: [ vector_search_app_net ]
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    ports: [ "5432:5432" ]
+
+networks:
+  vector_search_app_net:
