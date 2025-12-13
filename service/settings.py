@@ -11,7 +11,7 @@ class AppSettings(BaseSettings):
         extra='ignore',
     )
 
-    APP_NAME: str = 'VectorSearchApplication'
+    APP_NAME: str = 'VectorSearchApp'
     API_PORT: int = 8000
     ENGINE_CONFIG_PATH: str = 'engines.yml'
     POSTGRES_DSN: str

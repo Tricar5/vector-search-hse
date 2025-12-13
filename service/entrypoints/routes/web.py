@@ -20,7 +20,7 @@ from starlette.responses import (
 from service.settings import settings
 from service.utils import load_yml_config
 from vs.frames import open_and_load_frame
-from vs.local.engine import LocalSearchEngine, load_search_index
+from vs.local.engine import load_search_index
 
 templates = Jinja2Templates(directory='service/templates')
 
