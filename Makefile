@@ -1,15 +1,12 @@
 .PHONY: research.install dev.install
 
 
-env:
-	uv venv
+dev.install:
+	poetry install --with dev
 
 research.install:
-	uv sync --group research
+	poetry install --with research
 
-
-dev.install:
-	uv sync --group dev
 
 
 lint:
@@ -29,4 +26,4 @@ dc.down:
 
 
 run:
-	python -m service -p
+	python -m service
