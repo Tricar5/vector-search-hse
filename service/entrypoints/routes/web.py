@@ -1,3 +1,5 @@
+# flake8: noqa WPS339, WPS110
+import logging
 import os
 import subprocess
 from collections.abc import Generator
@@ -6,7 +8,14 @@ from typing import Any
 
 import cv2
 import torch
-from fastapi import APIRouter, Form, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.templating import Jinja2Templates
 from PIL import Image
 from starlette.requests import Request
@@ -17,13 +26,15 @@ from starlette.responses import (
     StreamingResponse,
 )
 
+from service.adapters.files import load_yml_config
 from service.settings import settings
-from service.utils import load_yml_config
 from vs.frames import open_and_load_frame
-from vs.local.engine import LocalSearchEngine, load_search_index
+from vs.local.engine import load_search_index
+
 
 templates = Jinja2Templates(directory='service/templates')
 
+logger = logging.getLogger(__name__)
 web_router = APIRouter(
     prefix='',
 )
@@ -40,8 +51,8 @@ search_index = load_search_index(
 
 def render_main_page(
     request: Request,
-    video_descriptions: Any,  # noqa: ANN401
-    used_videos: dict[int, Any],
+    video_descriptions: Any,
+    used_videos: Any,
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         'index.html',
@@ -75,14 +86,14 @@ async def upload_image(
     pil_img = Image.open(BytesIO(await file.read()))
 
     with torch.no_grad():
-        data = search_index.encode_image(pil_img)
+        query_tensor = search_index.encode_image(pil_img)  # type: ignore
 
-    if not data or len(data) == 0:
+    if len(query_tensor) == 0:
         return RedirectResponse('/', status_code=303)
 
     # Query videos
     video_desc, used_videos = search_index.query_videos_by_tensor(
-        data,
+        query_tensor,
         video_threshold=0.30,
         frame_threshold=0.2,
         percentile=1,
@@ -100,13 +111,13 @@ async def upload_text(
         return RedirectResponse('/', status_code=303)
 
     with torch.no_grad():
-        data = search_index.encode_text(text)
+        query_tensor = search_index.encode_text(text)
 
-    if len(data) == 0:
+    if len(query_tensor) == 0:
         return RedirectResponse('/', status_code=303)
 
     video_desc, used_videos = search_index.query_videos_by_tensor(
-        data,
+        query_tensor,
         video_threshold=0.2,
         frame_threshold=0.2,
         percentile=0.8,
@@ -117,9 +128,9 @@ async def upload_text(
 
 @web_router.get('/image')
 async def serve_image(
-    video: int = Query(...),
-    frame_number: int = Query(...),
-    thumbnail_size: int | None = Query(None),
+    video: int = Query(),
+    frame_number: int = Query(),
+    thumbnail_size: int | None = Query(default=None),
 ) -> StreamingResponse:
     int_to_video = search_index.int_to_video
     video_path = int_to_video[int(video)]
@@ -128,18 +139,23 @@ async def serve_image(
 
     ok, encoded = cv2.imencode('.jpg', img)
     if not ok:
-        raise HTTPException(500, 'Cannot encode image')
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail='Cannot encode image',
+        )
 
     img_bytes = BytesIO(encoded.tobytes())
 
-    base = os.path.basename(video_path).rsplit('.', 1)[0]
-    fn = f'{base}_frame_{frame_number}' if frame_number != -1 else base
+    fn = os.path.basename(video_path).rsplit('.', 1)[0]
+    if frame_number != -1:
+        fn = f'{fn}_frame_{frame_number}'
+
     if thumbnail_size:
-        fn += '_thumbnail'
+        fn += '_thumbnail'  # noqa: WPS336
     filename = f'{fn}.jpg'
 
     return StreamingResponse(
-        img_bytes,
+        content=img_bytes,
         media_type='image/jpeg',
         headers={'Content-Disposition': f"inline; filename='{filename}'"},
     )
@@ -147,13 +163,16 @@ async def serve_image(
 
 @web_router.get('/video_segment')
 async def video_segment(
-    path: str = Query(...),
-    fps: int = Query(...),
-    frame_start: int = Query(...),
-    frame_end: int = Query(...),
+    path: str = Query(),
+    fps: int = Query(),
+    frame_start: int = Query(),
+    frame_end: int = Query(),
 ) -> StreamingResponse:
     if not os.path.exists(path):
-        raise HTTPException(404, 'Video not found')
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Video not found',
+        )
 
     start_seconds = frame_start / fps
     end_seconds = frame_end / fps
@@ -182,12 +201,19 @@ async def video_segment(
         '-',
     ]
 
-    def generate() -> Generator[bytes, None, None]:
-        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    def generate() -> Generator[bytes, None, None]:  # noqa: WPS430
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
         try:
-            yield from iter(lambda: p.stdout.read(64 * 1024), b'')
+            FILE_SIZE = 64 * 1024  # noqa: WPS432
+            yield from iter(lambda: proc.stdout.read(), b'')  # type: ignore
+        except Exception as exc:
+            logger.exception(exc)
         finally:
-            p.kill()
+            proc.kill()
 
     filename = os.path.basename(path).rsplit('.', 1)[0]
     filename = f'{filename}_segment_{frame_start}-{frame_end}.mp4'
