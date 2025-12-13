@@ -16,6 +16,11 @@ dependencies = [
     "clip @ git+https://github.com/openai/CLIP.git",
     "wemake-python-styleguide (>=1.4.0,<2.0.0)",
     "types-pyyaml (>=6.0.12.20250915,<7.0.0.0)",
+    "uvicorn (>=0.38.0,<0.39.0)",
+    "pydantic-settings (>=2.12.0,<3.0.0)",
+    "opencv-python (>=4.12.0.88,<5.0.0.0)",
+    "python-multipart (>=0.0.20,<0.0.21)",
+    "typer (>=0.20.0,<0.21.0)",
 ]
 
 
