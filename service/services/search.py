@@ -3,6 +3,7 @@ from typing import List
 
 from service.adapters.engines.base import Engine
 from service.db.repositories.search import SearchRepository
+from service.domain.auth.token import AuthContext
 from service.domain.inference.schemas import (
     InferenceCreateSchema,
     InferenceFilters,
@@ -39,6 +40,12 @@ class SearchService:
         filters: InferenceFilters,
     ) -> List[SearchResultSchema]:
         return await self._repo.get_by_filters(**filters.model_dump(exclude_none=True))
+
+    async def delete_searches(self, user: str, token: AuthContext) -> None:
+        if not token.is_admin and user != token.payload.user:
+            return
+
+        await self._repo.delete_history(user_to_delete=user)
 
     async def _store_results(
         self,

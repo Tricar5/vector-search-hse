@@ -15,6 +15,6 @@ class TokenPayload(BaseModel):
     issuer: str = Field(default='vector-search-service', alias='i')
 
 
-class TokenContext(BaseModel):
+class AuthContext(BaseModel):
     payload: TokenPayload
     is_admin: bool = False

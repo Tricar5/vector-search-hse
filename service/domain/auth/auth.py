@@ -13,7 +13,7 @@ from fastapi.security import (
 )
 
 from service.di import di
-from service.domain.auth.token import TokenContext
+from service.domain.auth.token import AuthContext
 from service.domain.auth.user import (
     CTX_AUTH_USER,
     set_token_context,
@@ -31,7 +31,7 @@ def check_auth(
         Depends(AUTH_HEADER),
     ],
     auth_service: Annotated[AuthService, Depends(lambda: di.get(AuthService))],
-) -> TokenContext:
+) -> AuthContext:
     try:
         token_context = CTX_AUTH_USER.get()
     except LookupError:
@@ -39,7 +39,7 @@ def check_auth(
 
     token = http_credentials.credentials if http_credentials else None
     payload = auth_service.validate_token(token)
-    token_context = TokenContext(payload=payload)
+    token_context = AuthContext(payload=payload)
     token_context.is_admin = auth_service.is_admin(payload)
     set_token_context(token_context)
     request.scope['token_context'] = CTX_AUTH_USER
