@@ -39,7 +39,7 @@ web_router = APIRouter(
     prefix='',
 )
 
-index_config = load_yml_config(settings.ENGINE_CONFIG_PATH)
+index_config = load_yml_config(settings.engine_config_path)
 
 search_index = load_search_index(
     index_config['local']['index_path'],

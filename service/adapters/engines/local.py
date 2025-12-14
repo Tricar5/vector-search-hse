@@ -35,7 +35,7 @@ def brute_force_query_torch(
     return sorted_indices, sorted_sims.float()
 
 
-class BaselineSearchEngine(Engine):
+class LocalSearchEngine(Engine):
 
     def __init__(
         self,
@@ -151,9 +151,9 @@ class BaselineSearchEngine(Engine):
     def build_engine(
         cls,
         settings: AppSettings,
-    ) -> 'BaselineSearchEngine':
+    ) -> 'LocalSearchEngine':
 
-        raw_config = load_yml_config(settings.ENGINE_CONFIG_PATH)
+        raw_config = load_yml_config(settings.engine_config_path)
 
         config = LocalEngineConfig.parse_obj(raw_config['local'])
 
@@ -166,7 +166,7 @@ class BaselineSearchEngine(Engine):
         with open(config.thumbnail_path, 'rb') as pickled_data:
             thumbnails_meta = pickle.load(pickled_data)
 
-        return BaselineSearchEngine(config, dataset, meta, thumbnails_meta)
+        return LocalSearchEngine(config, dataset, meta, thumbnails_meta)
 
     def _encode_text(self, text: str) -> torch.Tensor:
         with torch.no_grad():

@@ -1,15 +1,16 @@
 from dishka import (
     Provider,
     Scope,
-    make_async_container,
+    make_container,
     provide,
 )
 
 from service.adapters.engines.base import Engine
-from service.adapters.engines.local import BaselineSearchEngine
+from service.adapters.engines.local import LocalSearchEngine
 from service.db.connections.base import Connector
 from service.db.connections.postgres import Postgres
 from service.db.repositories.search import SearchRepository
+from service.services.auth_service import AuthService
 from service.services.search import SearchService
 from service.settings import (
     AppSettings,
@@ -17,7 +18,7 @@ from service.settings import (
 )
 
 
-class ApplicationSearchProvider(Provider):
+class AppProvider(Provider):
 
     @provide(scope=Scope.APP)
     def get_settings(self) -> AppSettings:
@@ -25,21 +26,23 @@ class ApplicationSearchProvider(Provider):
 
     @provide(scope=Scope.APP)
     def get_engine(self, settings: AppSettings) -> Engine:
-        return BaselineSearchEngine.build_engine(settings)
+        return LocalSearchEngine.build_engine(settings)
 
     @provide(scope=Scope.APP)
     def get_connection(self, settings: AppSettings) -> Connector:
-        return Postgres(settings.async_dsn)
+        return Postgres(settings.db)
 
     @provide(scope=Scope.APP)
     def get_history_repo(self, conn: Connector) -> SearchRepository:
         return SearchRepository(conn)
 
-    @provide(scope=Scope.REQUEST)
-    def get_service(self, engine: Engine, repo: SearchRepository) -> SearchService:
+    @provide(scope=Scope.APP)
+    def get_search_service(self, engine: Engine, repo: SearchRepository) -> SearchService:
         return SearchService(engine, repo)
 
+    @provide(scope=Scope.APP)
+    def get_auth_service(self, settings: AppSettings) -> AuthService:
+        return AuthService(settings.auth)
 
-provider = ApplicationSearchProvider()
 
-main_container = make_async_container(provider)
+di = make_container(AppProvider())

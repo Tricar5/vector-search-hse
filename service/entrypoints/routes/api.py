@@ -3,18 +3,17 @@ from typing import (
     Any,
 )
 
-from dishka.integrations.fastapi import (
-    FromDishka,
-    inject,
-)
 from fastapi import (
     APIRouter,
+    Depends,
     HTTPException,
     Query,
     status,
 )
 from pydantic import BaseModel
 
+from service.di import di
+from service.domain.auth.auth import check_auth
 from service.domain.inference.schemas import InferenceFilters
 from service.domain.internal.errors.exc import ModelException
 from service.services.search import SearchService
@@ -29,20 +28,16 @@ class BaseResponseSchema(BaseModel):
     answer: Any
 
 
-api_router = APIRouter(
-    prefix='/api/v1',
-    tags=['API'],
-)
+api_router = APIRouter(prefix='/api/v1', tags=['API'], dependencies=[Depends(check_auth)])
 
 
 @api_router.post(
     path='/forward',
     status_code=status.HTTP_200_OK,
 )
-@inject
 async def make_forward_predict(
     request_data: ForwardRequestSchema,
-    search_service: FromDishka[SearchService],
+    search_service: SearchService = Depends(lambda: di.get(SearchService)),
 ) -> BaseResponseSchema:
     try:
         videos = await search_service.search_by_text(request_data.query)
@@ -55,10 +50,9 @@ async def make_forward_predict(
     path='/history',
     status_code=status.HTTP_200_OK,
 )
-@inject
 async def get_historical_results(
     filters: Annotated[InferenceFilters, Query()],
-    search_service: FromDishka[SearchService],
+    search_service: SearchService = Depends(lambda: di.get(SearchService)),
 ) -> BaseResponseSchema:
     history = await search_service.get_searches(filters)
     if not history:

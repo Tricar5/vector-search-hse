@@ -24,7 +24,7 @@ config = context.config
 # logger = logging.getLogger("alembic.env")
 section = config.config_ini_section
 
-config.set_section_option(section, 'sqlalchemy.url', settings.POSTGRES_DSN)
+config.set_section_option(section, 'sqlalchemy.url', settings.db.db_dsn)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
