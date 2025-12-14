@@ -18,6 +18,10 @@ class AppSettings(BaseSettings):
     ENGINE_CONFIG_PATH: str = 'engines.yml'
     POSTGRES_DSN: str
 
+    @property
+    def async_dsn(self) -> str:
+        return self.POSTGRES_DSN.replace('postgresql://', 'postgresql+asyncpg://')
+
 
 def get_settings(env_file: str = '.env') -> AppSettings:
     """Settings Factory"""

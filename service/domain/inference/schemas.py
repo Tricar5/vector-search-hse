@@ -2,6 +2,7 @@ import datetime
 from typing import (
     Any,
     Dict,
+    Optional,
 )
 
 from pydantic import (
@@ -25,8 +26,24 @@ class InferenceCreateSchema(BaseModel):
     processing_time: float = Field(description='Время выполнения в секундах')
 
 
-class InferenceSchema(InferenceCreateSchema):
+class SearchResultSchema(InferenceCreateSchema):
     id: int = Field(description='ID запроса в базе данных')
     created_at: datetime.datetime = Field(
         description='Время совершения запроса',
+    )
+
+
+class InferenceFilters(BaseModel):
+    limit: Optional[int] = Field(
+        default=10,
+    )
+    offset: Optional[int] = Field(
+        default=0,
+    )
+    query: Optional[str] = Field(
+        default=None,
+        description='Запрос',
+    )
+    query_type: Optional[str] = Field(
+        default=None,
     )

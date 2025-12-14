@@ -39,7 +39,7 @@ db.revision:
 	cd service/db && alembic revision --autogenerate -m $(args)
 
 db.migrate:
-	cd service/db && alembic upgrade $(args)
+	cd service/db && alembic upgrade head
 
 db.rollback:
 	cd service/db && alembic downgrade -1

@@ -14,7 +14,7 @@ PATH = pathlib.Path().resolve().parent.parent
 sys.path.append(str(PATH))
 
 from service.db.models.base import Base
-from service.db.models.inference import InferenceModel
+from service.db.models.search import SearchHistoryModel
 from service.settings import settings
 
 
