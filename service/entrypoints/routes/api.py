@@ -10,8 +10,8 @@ from fastapi import (
 )
 from pydantic import BaseModel
 
-from service.adapters.engines.local import BaselineSearchEngine
 from service.domain.internal.errors.exc import ModelException
+from service.services.search import SearchService
 
 
 class ForwardRequestSchema(BaseModel):
@@ -35,10 +35,10 @@ api_router = APIRouter(
 @inject
 def make_forward_predict(
     request_data: ForwardRequestSchema,
-    engine: FromDishka[BaselineSearchEngine],
+    search_service: FromDishka[SearchService],
 ) -> BaseResponseSchema:
     try:
-        videos = engine.search_videos_by_text(request_data.query)
+        videos = search_service.search_by_text(request_data.query)
     except Exception:
         raise ModelException('Модель не смогла обработать данные')
     return BaseResponseSchema(answer=videos)

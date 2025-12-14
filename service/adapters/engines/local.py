@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 
+from service.adapters.engines.base import Engine
 from service.adapters.engines.schemas import (
     LocalEngineConfig,
     UsedVideo,
@@ -34,7 +35,7 @@ def brute_force_query_torch(
     return sorted_indices, sorted_sims.float()
 
 
-class BaselineSearchEngine:
+class BaselineSearchEngine(Engine):
 
     def __init__(
         self,
@@ -147,7 +148,7 @@ class BaselineSearchEngine:
         return videos
 
     @classmethod
-    def load_search_index(
+    def build_engine(
         cls,
         settings: AppSettings,
     ) -> 'BaselineSearchEngine':
@@ -156,14 +157,14 @@ class BaselineSearchEngine:
 
         config = LocalEngineConfig.parse_obj(raw_config['local'])
 
-        with open(config.index_path, 'rb') as sup_data:
-            dataset = pickle.load(sup_data)
+        with open(config.index_path, 'rb') as pickled_data:
+            dataset = pickle.load(pickled_data)
 
-        with open(config.metadata_path, 'rb') as sup_data:
-            meta = pickle.load(sup_data)
+        with open(config.metadata_path, 'rb') as pickled_data:
+            meta = pickle.load(pickled_data)
 
-        with open(config.thumbnail_path, 'rb') as sup_data:
-            thumbnails_meta = pickle.load(sup_data)
+        with open(config.thumbnail_path, 'rb') as pickled_data:
+            thumbnails_meta = pickle.load(pickled_data)
 
         return BaselineSearchEngine(config, dataset, meta, thumbnails_meta)
 
