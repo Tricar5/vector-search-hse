@@ -32,7 +32,7 @@ class DbConfig(_Settings):
 
 
 class AppSettings(_Settings):
-    name: str  # = 'VectorSearchApp'
+    app_name: str  # = 'VectorSearchApp'
     engine_config_path: str  # = 'engines.yml'
     auth: AuthConfig = Field(default_factory=AuthConfig)
     db: DbConfig = Field(default_factory=DbConfig)

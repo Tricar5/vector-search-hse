@@ -10,6 +10,7 @@ from service.adapters.engines.local import LocalSearchEngine
 from service.db.connections.base import Connector
 from service.db.connections.postgres import Postgres
 from service.db.repositories.search import SearchRepository
+from service.domain.internal.metrics.instrumentator import MetricsInstrumentator
 from service.services.auth_service import AuthService
 from service.services.search import SearchService
 from service.settings import (
@@ -23,6 +24,10 @@ class AppProvider(Provider):
     @provide(scope=Scope.APP)
     def get_settings(self) -> AppSettings:
         return get_settings()
+
+    @provide(scope=Scope.APP)
+    def get_metrics(self) -> MetricsInstrumentator:
+        return MetricsInstrumentator()
 
     @provide(scope=Scope.APP)
     def get_engine(self, settings: AppSettings) -> Engine:
