@@ -8,6 +8,9 @@ MESSAGE = "Done"
 endif
 
 
+env:
+	cp .env.default .env
+
 
 dev.install:
 	poetry install --with dev

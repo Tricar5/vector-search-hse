@@ -1,7 +1,8 @@
-## Приложение
+# Дока к приложению
 
 
-##Авторизация
+
+## Авторизация
 
 
 
@@ -24,7 +25,7 @@ cat test.pub | awk '{printf "%s\\n", $0}' | pbcopy
 export AUTH_PRIVATE_KEY=$(cat test.pem | awk '{printf "%s\\n", $0}')
 ```
 
-## Генерация токена
+### Генерация токена
 ```python
 import os
 from jose import constants, jwt
