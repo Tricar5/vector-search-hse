@@ -1,5 +1,4 @@
 from enum import StrEnum
-from typing import Optional
 
 from pydantic import (
     BaseModel,
@@ -8,7 +7,7 @@ from pydantic import (
 
 
 class AdminUsers(StrEnum):
-    HSE_ADMIN = 'hse-admin'
+    HSE_ADMIN = 'hse-vector'
 
 
 class TokenPayload(BaseModel):
@@ -17,5 +16,5 @@ class TokenPayload(BaseModel):
 
 
 class TokenContext(BaseModel):
-    payload: Optional[TokenPayload] = None
+    payload: TokenPayload
     is_admin: bool = False

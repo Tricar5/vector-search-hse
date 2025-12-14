@@ -22,10 +22,7 @@ class SearchService:
         self._engine = engine
         self._repo = repo
 
-    async def search_by_text(
-        self,
-        text: str,
-    ) -> list[VideoDescription]:
+    async def search_by_text(self, text: str, user: str) -> list[VideoDescription]:
         st = time.monotonic()
         videos = self._engine.search_videos_by_text(text)
         processing_time = time.monotonic() - st
@@ -33,6 +30,7 @@ class SearchService:
             text=text,
             videos=videos,
             processing_time=processing_time,
+            user=user,
         )
         return videos
 
@@ -40,13 +38,14 @@ class SearchService:
         self,
         filters: InferenceFilters,
     ) -> List[SearchResultSchema]:
-        return await self._repo.get_by_filters(**filters.model_dump())
+        return await self._repo.get_by_filters(**filters.model_dump(exclude_none=True))
 
     async def _store_results(
         self,
         text: str,
         videos: list[VideoDescription],
         processing_time: float,
+        user: str,
     ) -> SearchResultSchema:
         return await self._repo.create(
             obj_in=InferenceCreateSchema(
@@ -54,5 +53,6 @@ class SearchService:
                 query_type=InputQueryType.TEXT,
                 result={'videos': videos},
                 processing_time=processing_time,
+                user=user,
             ),
         )

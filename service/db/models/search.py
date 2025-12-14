@@ -27,3 +27,4 @@ class SearchHistoryModel(Base):
     processing_time: Mapped[float] = mapped_column(
         Float,
     )
+    user: Mapped[str] = mapped_column(String(50), nullable=True, index=True)

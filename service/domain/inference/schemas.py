@@ -24,6 +24,9 @@ class InferenceCreateSchema(BaseModel):
         description='Результат выполнения запроса',
     )
     processing_time: float = Field(description='Время выполнения в секундах')
+    user: Optional[str] = Field(
+        description='Пользователь запроса',
+    )
 
 
 class SearchResultSchema(InferenceCreateSchema):
@@ -45,5 +48,8 @@ class InferenceFilters(BaseModel):
         description='Запрос',
     )
     query_type: Optional[str] = Field(
+        default=None,
+    )
+    user: Optional[str] = Field(
         default=None,
     )

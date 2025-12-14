@@ -63,10 +63,17 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, SchemaType]):
     ) -> list[SchemaType]:
         async with self.session_factory() as db:
             stmt = select(self.model)
+
+            for attr_name, attr_value in kwargs.items():
+                if getattr(self.model, attr_name) is not None:
+                    stmt = stmt.where(getattr(self.model, attr_name) == attr_value)
+
             if offset is not None:
                 stmt = stmt.offset(offset)
             if limit is not None:
                 stmt = stmt.limit(limit)
+
+            stmt.order_by(self.model.created_at.desc())
             res = await db.execute(stmt)
             db_objects = res.scalars().all()
         raw_entities = [self._record_to_entity(db_object) for db_object in db_objects]
