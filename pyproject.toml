@@ -21,6 +21,8 @@ dependencies = [
     "opencv-python (>=4.12.0.88,<5.0.0.0)",
     "python-multipart (>=0.0.20,<0.0.21)",
     "typer (>=0.20.0,<0.21.0)",
+    "dishka (>=1.7.2,<2.0.0)",
+    "orjson (>=3.11.5,<4.0.0)",
 ]
 
 

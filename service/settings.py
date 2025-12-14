@@ -1,5 +1,3 @@
-from functools import lru_cache
-
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
@@ -20,10 +18,9 @@ class AppSettings(BaseSettings):
     POSTGRES_DSN: str
 
 
-@lru_cache(maxsize=1)
-def get_settings(env_file: str = '.env') -> AppSettings:
+def get_settings() -> AppSettings:
     """Settings Factory"""
-    return AppSettings(_env_file=env_file)
+    return AppSettings()
 
 
-settings = get_settings(env_file='.env')
+settings = get_settings()
