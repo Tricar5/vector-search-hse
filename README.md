@@ -42,10 +42,38 @@ make dev.install
 poetry env activate
 ```
 
+## Запуск приложения
+
+```shell
+make run
+```
+
+## Миграции на базу данных
+
+# Migrations
+
+1. Накат миграций (Пример: всех)
+
+```shell
+make db.migrate head
+```
+
+2. Откат миграций (по одной)
+
+```shell
+make db.rollback
+```
+
+3. Создание новой миграции после обновления моделей
+
+```shell
+make db.revision 'new_migration'
+```
 
 ## CLI
 
-Для автоматизации некоторых процедур по сбору датасеты мы добавили CLI интерфейс с помощью typer
+Для автоматизации некоторых процедур по сбору датасеты мы добавили CLI интерфейс с помощью
+typer
 
 Получение списка доступных команд
 
@@ -53,15 +81,16 @@ poetry env activate
 python -m vs.cli --help
 ```
 
-
 ### Локальный индекс
 
 # Создание локального индекса
+
 ```shell
 python -m vs.local_index_pipe --help
 ```
 
 # Создание метадаты на базе индекса
+
 ```shell
 python -m vs.local_thumbnail --help
 ```

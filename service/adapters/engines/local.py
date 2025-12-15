@@ -32,7 +32,7 @@ def brute_force_query_torch(
     sorted_sims, order = torch.sort(filtered_sims, descending=True)
     sorted_indices = filtered_indices[order]
 
-    return sorted_indices.cpu(), sorted_sims.float().cpu()
+    return sorted_indices, sorted_sims.float()
 
 
 class LocalSearchEngine(Engine):
@@ -57,12 +57,12 @@ class LocalSearchEngine(Engine):
         self._int_to_video = {i: v for v, i in self._video_to_int.items()}
         self._meta_video_ids = torch.tensor(
             [self._video_to_int[m[0]] for m in meta],
-            device='cpu',
+            device=self.device,
             dtype=torch.int32,
         )
         self._meta_frame_nums = torch.tensor(
             [m[1] for m in meta],
-            device='cpu',
+            device=self.device,
             dtype=torch.int32,
         )
         self.img_cfg = config.image
@@ -100,59 +100,48 @@ class LocalSearchEngine(Engine):
         percentile: float,
     ) -> list[VideoDescription]:
         indices, certs = brute_force_query_torch(self.dataset, x, frame_threshold)
+        certs = certs.cpu()
         video_idxs = self._meta_video_ids[indices]
         video_frames = self._meta_frame_nums[indices]
 
-        vals, order = torch.sort(video_idxs)
-        targets = torch.tensor([self._video_to_int[v] for v in self.all_videos])
-        left = torch.bucketize(targets, vals, right=False)
-        right = torch.bucketize(targets, vals, right=True)
-
-        lengths = right - left
-        valid = lengths > 0
-        if not torch.any(valid):
-            return []
-
-        perc_offsets = (lengths.float() * (1 - percentile)).long()
-        perc_offsets = torch.clamp(perc_offsets, min=0)
-
-        perc_idxs = left + perc_offsets
-        perc_idxs = perc_idxs[valid]
-
-        certs_per_video = certs[order[perc_idxs]]
-
-        passed = certs_per_video >= video_threshold
-        if not torch.any(passed):
-            return []
-
-        final_video_idxs = torch.nonzero(valid).squeeze(1)[passed]
-        final_certs = certs_per_video[passed]
-        frames_sorted = video_frames[order]
-
         videos = []
         used_videos = {}
-        for i, vid_idx in enumerate(final_video_idxs.tolist()):
-            l, r = left[vid_idx], right[vid_idx]
-            subset = frames_sorted[l:r]
-            start_ = subset.min().item()
-            end_ = subset.max().item()
+
+        vals, order = torch.sort(video_idxs)
+        targets = torch.tensor(
+            [self._video_to_int[v] for v in self.all_videos],
+            device=video_idxs.device,
+        )
+        order = order.cpu()
+        left = torch.bucketize(targets, vals, right=False).cpu()
+        right = torch.bucketize(targets, vals, right=True).cpu()
+
+        for i, video in enumerate(self.all_videos):
+            if left[i] == right[i]:
+                continue
+            args = order[left[i] : right[i]]
+            cert_ = certs[order[left[i] + int((right[i] - left[i]) * (1 - percentile))]]
+            if cert_ < video_threshold:
+                continue
+            subset = video_frames[args]
+            start_ = torch.min(subset)
+            end_ = torch.max(subset)
             max_frame = subset[0]
-            cert_ = final_certs[i].item()
+            used_videos[video] = UsedVideo(
+                start_pos=start_.item(), end_pos=end_.item(), score=cert_.item()
+            )
 
-            video = self.all_videos[vid_idx]
-            used_videos[video] = UsedVideo(start_pos=start_, end_pos=end_, score=cert_)
-
-            video_ = VideoDescription(
+            video = VideoDescription(
                 name=video.split('/')[-1],
                 path=video,
                 video_id=self._video_to_int[video],
                 frame_num=max_frame,  # type: ignore
                 fps=self.thumbnails_meta[video][1],
-                start_pos=start_,
-                end_pos=end_,
-                score=cert_,
+                start_pos=start_.item(),
+                end_pos=end_.item(),
+                score=cert_.item(),
             )
-            videos.append(video_)
+            videos.append(video)
 
         videos = sorted(videos, key=lambda x: x.score, reverse=True)
 
