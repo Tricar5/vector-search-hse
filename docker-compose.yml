@@ -1,0 +1,16 @@
+version: '3.9'
+
+name: vector_search_service
+services:
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    ports: [ "5432:5432" ]
+    networks: [ vector_search_service_net ]
+
+networks:
+  vector_search_service_net:
