@@ -129,6 +129,7 @@ class LocalSearchEngine(Engine):
 
         final_video_idxs = torch.nonzero(valid).squeeze(1)[passed]
         final_certs = certs_per_video[passed]
+        frames_sorted = video_frames[order]
         
         videos = []
         used_videos = {}
