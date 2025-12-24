@@ -1,3 +1,4 @@
+# flake8: noqa: WPS339
 from typing import (
     Callable,
     List,

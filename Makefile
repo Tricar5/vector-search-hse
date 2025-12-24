@@ -1,4 +1,6 @@
-.PHONY: research.install dev.install
+include: .env
+
+.PHONY: research.install dev.install lint env run
 
 args := $(wordlist 2, 100, $(MAKECMDGOALS))
 ifndef args
@@ -17,8 +19,6 @@ dev.install:
 
 research.install:
 	poetry install --with research
-
-
 
 lint:
 	@isort ./service/ ./tests/  --settings-file ./setup.cfg

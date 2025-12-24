@@ -104,25 +104,23 @@ class LocalSearchEngine(Engine):
         video_frames = self._meta_frame_nums[indices]
 
         vals, order = torch.sort(video_idxs)
-        targets = torch.tensor(
-            [self._video_to_int[v] for v in self.all_videos]
-        )
+        targets = torch.tensor([self._video_to_int[v] for v in self.all_videos])
         left = torch.bucketize(targets, vals, right=False)
         right = torch.bucketize(targets, vals, right=True)
-        
+
         lengths = right - left
         valid = lengths > 0
         if not torch.any(valid):
             return []
-        
+
         perc_offsets = (lengths.float() * (1 - percentile)).long()
         perc_offsets = torch.clamp(perc_offsets, min=0)
-    
+
         perc_idxs = left + perc_offsets
         perc_idxs = perc_idxs[valid]
-    
+
         certs_per_video = certs[order[perc_idxs]]
-    
+
         passed = certs_per_video >= video_threshold
         if not torch.any(passed):
             return []
@@ -130,11 +128,11 @@ class LocalSearchEngine(Engine):
         final_video_idxs = torch.nonzero(valid).squeeze(1)[passed]
         final_certs = certs_per_video[passed]
         frames_sorted = video_frames[order]
-        
+
         videos = []
         used_videos = {}
         for i, vid_idx in enumerate(final_video_idxs.tolist()):
-            l,r  = left[vid_idx], right[vid_idx]
+            l, r = left[vid_idx], right[vid_idx]
             subset = frames_sorted[l:r]
             start_ = subset.min().item()
             end_ = subset.max().item()
@@ -142,9 +140,7 @@ class LocalSearchEngine(Engine):
             cert_ = final_certs[i].item()
 
             video = self.all_videos[vid_idx]
-            used_videos[video] = UsedVideo(
-                start_pos=start_, end_pos=end_, score=cert_
-            )
+            used_videos[video] = UsedVideo(start_pos=start_, end_pos=end_, score=cert_)
 
             video_ = VideoDescription(
                 name=video.split('/')[-1],
