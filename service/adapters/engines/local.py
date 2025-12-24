@@ -141,7 +141,7 @@ class LocalSearchEngine(Engine):
             max_frame = subset[0]
             cert_ = final_certs[i].item()
 
-            video = all_videos[vid_idx]
+            video = self.all_videos[vid_idx]
             used_videos[video] = UsedVideo(
                 start_pos=start_, end_pos=end_, score=cert_
             )
