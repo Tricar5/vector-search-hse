@@ -1,13 +1,22 @@
 import logging
 import pathlib
 import pickle
-from typing import Union, List, Tuple, Set
+from typing import (
+    List,
+    Set,
+    Tuple,
+    Union,
+)
 
-from scipy.linalg._decomp_interpolative import NDArray
+from numpy.typing import NDArray
 from tqdm import tqdm
 
-from vs.frames import open_and_load_frame, iter_video_frames
 from vs.embedder.clip import ClipEmbedder
+from vs.frames import (
+    iter_video_frames,
+    open_and_load_frame,
+)
+
 
 logger = logging.getLogger(__name__)
 

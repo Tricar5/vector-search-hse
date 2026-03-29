@@ -1,0 +1,14 @@
+local:
+  index_path: 'data/index.pkl'
+  metadata_path: 'data/metadata.pkl'
+  thumbnail_path: 'data/thumbnails.pkl'
+  device: cpu
+  text:
+    video_threshold: 0.26
+    frame_threshold: 0.2
+    percentile: 0.8
+
+  image:
+    video_threshold: 0.30
+    frame_threshold: 0.2
+    percentile: 1
