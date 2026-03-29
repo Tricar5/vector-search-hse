@@ -5,6 +5,7 @@ from numpy.typing import NDArray
 import numpy as np
 
 import torch
+from vs.embedder.clip import BaseWrapper, AudioCLIPWrapper
 
 
 def brute_force_query_torch(X, x, certainty_threshold):
@@ -30,8 +31,9 @@ class LocalSearchEngine:
         meta: List[Any],
         thumbnails_meta: Dict[str, Any],
         device: str,
+        model: Optional[BaseWrapper]=None
     ):
-        self.model, self.preprocessor = clip.load('ViT-B/32', device=device)
+        self.model = model if model else AudioCLIPWrapper(device=device)
         self.dataset = torch.tensor(np.array(index))
         self.thumbnails_meta = thumbnails_meta
         self.all_videos = sorted(set([m[0] for m in meta]))
@@ -47,21 +49,34 @@ class LocalSearchEngine:
         self,
         text: str
     ) -> torch.Tensor:
-        with torch.no_grad():
-            data = self.model.encode_text(clip.tokenize([text]))
-        data /= torch.linalg.norm(data)
-        return data
+        if self.model.text:
+            batch = self.model.preprocess_text(text)
+            data = self.model.process_text(batch)
+            return data[0:1]
+        else:
+            raise NonImplemetedError('Представленная модель не может обрабатывать текст')
 
     def encode_image(
         self,
-        file: NDArray,
+        image: NDArray,
     ) -> torch.Tensor:
-        with torch.no_grad():
-            data = self.model.encode_image(self.preprocessor(file).unsqueeze(0))
-        data = torch.sign(data) * torch.pow(torch.abs(data), 0.25)
-        data /= torch.linalg.norm(data)
+        if self.model.images:
+            batch = self.model.preprocess_image(image)
+            data = self.model.process_image(batch)
+            return data[0:1]
+        else:
+            raise NonImplemetedError('Представленная модель не может обрабатывать изображения')
 
-        return data
+    def encode_audio(
+        self,
+        audio_path: Union[str, pathlib.Path], # потому что разные модели могут потребовать разные способы загрузки аудиоданных
+    ) -> torch.Tensor:
+        if self.model.audio:
+            batch, _ = self.model.preprocess_audio(audio_path)
+            data = self.model.process_audio(batch)
+            return data[0:1]
+        else:
+            raise NonImplemetedError('Представленная модель не может обрабатывать аудио')
 
     def query_videos_by_tensor(
         self,
@@ -72,35 +87,64 @@ class LocalSearchEngine:
     ) -> Tuple[List[Tuple[str, str, int]], Dict[str, Tuple[int, int, float]]]:
         idxs, certs = brute_force_query_torch(self.dataset, x, frame_threshold)
         certs = certs.cpu()
+        idxs = idxs.cpu()
         video_idxs = self.meta_video_ids[idxs]
-        video_frames = self.meta_frame_nums[idxs]
-
-        video_descriptions = []
-        used_videos = {}
+        video_starts = self.meta_frame_starts[idxs]
+        video_ends = self.meta_frame_ends[idxs]
 
         vals, order = torch.sort(video_idxs)
-        targets = torch.tensor([self.video_to_int[v] for v in self.all_videos],
-                               device=video_idxs.device)
-        order = order.cpu()
-        left = torch.bucketize(targets, vals, right=False).cpu()
-        right = torch.bucketize(targets, vals, right=True).cpu()
+        targets = torch.tensor([video_to_int[v] for v in all_videos])
+        left  = torch.bucketize(targets, vals, right=False)
+        right = torch.bucketize(targets, vals, right=True)
 
-        for i, video in enumerate(self.all_videos):
-            if left[i] == right[i]:
-                continue
-            args = order[left[i]:right[i]]
-            cert_ = certs[order[left[i] + int((right[i] - left[i]) * (1 - percentile))]]
-            if cert_ < video_threshold:
-                continue
-            subset = video_frames[args]
-            start_ = torch.min(subset)
-            end_ = torch.max(subset)
-            max_frame = subset[0]
-            used_videos[video] = (start_.item(), end_.item(), cert_.item())
-            frame_request = f'/image?video={self.video_to_int[video]}&frame_number={max_frame}'
-            video_descriptions.append((video, frame_request, self.thumbnails_meta[video][1]))
+        num_videos = len(all_videos)
 
-        video_descriptions = sorted(video_descriptions, key=lambda x: used_videos[x[0]][2], reverse=True)[:100]
+        lengths = right - left
+        valid = lengths > 0
+
+        perc_offsets = (lengths.float() * (1 - percentile)).long()
+        perc_offsets = torch.clamp(perc_offsets, min=0)
+
+        perc_idxs = left + perc_offsets
+        perc_idxs = perc_idxs[valid]
+        certs_per_video = certs[order[perc_idxs]]
+        passed = certs_per_video >= video_threshold
+
+        final_video_idxs = torch.nonzero(valid)[passed].squeeze(1)
+        final_certs = certs_per_video[passed]
+        frames_starts_sorted = video_starts[order]
+        frames_ends_sorted = video_ends[order]
+
+        used_videos = {}
+        video_descriptions = []
+
+        for i, vid_idx in enumerate(final_video_idxs.tolist()):
+            l,r  = left[vid_idx], right[vid_idx]
+            subset_s = frames_starts_sorted[l:r]
+            subset_e = frames_ends_sorted[l:r]
+            start = subset_s.min()
+            end = subset_e.max()
+            max_frame = subset_s[0]
+
+            video = self.all_videos[vid_idx]
+            used_videos[video] = (
+                start.item(),
+                end.item(),
+                final_certs[i].item()
+            )
+            frame_request = (
+                f"/image?video={self.video_to_int[video]}"
+                f"&frame_number={max_frame.item()}"
+            )
+            video_descriptions.append(
+                (video, frame_request, self.thumbnails_meta[video][1])
+            )
+
+        video_descriptions = sorted(
+            video_descriptions,
+            key=lambda x: used_videos[x[0]][2],
+            reverse=True
+        )[:100]
 
         return video_descriptions, used_videos
 
