@@ -11,50 +11,76 @@ from typing import (
 from numpy.typing import NDArray
 from tqdm import tqdm
 
-from vs.embedder.clip import ClipEmbedder
+from vs.embedder.clip import BaseWrapper, AudioCLIPWrapper
 from vs.frames import (
     iter_video_frames,
     open_and_load_frame,
 )
 
+import cv2
 
 logger = logging.getLogger(__name__)
 
 
-def embed_one_video(
-    embedder: ClipEmbedder,
+def embed_images_from_one_video(
+    embedder: BaseWrapper,
     video_path: Union[str, pathlib.Path],
-    rate: float = 1,
+    seconds_per_embed: float = 1,
 ) -> Tuple[List[NDArray], List[Tuple[str, int]]]:
+
     list_frames = []
     list_meta = []
     for frame, pos in iter_video_frames(video_path, rate):
-        list_frames.append(frame)
-        list_meta.append((video_path, pos))
+        list_frames.append(embedder.preprocess_image(frame))
+        list_meta.append((video_path, pos, pos+1))
 
-    embeddings = embedder.embed_images(list_frames)
+    if not list_frames:
+        return [], list_meta
+
+    batch = torch.stack(list_frames)
+    embeddings_tensor = embedder.process_image(batch)
+    embeddings = [emb.cpu().numpy() for emb in embeddings_tensor]
+
+    return embeddings, list_meta
+
+
+def embed_audio_from_one_video(
+    embedder: BaseWrapper,
+    video_path: Union[str, pathlib.Path]
+) -> Tuple[List[NDArray], List[Tuple[str, int]]]:
+    cam = cv2.VideoCapture(video_path)
+    fps = cam.get(cv2.CAP_PROP_FPS)
+
+    batch, list_meta = embedder.preprocess_audio(video_path)
+    embeddings_tensor = embedder.process_image(batch)
+    list_meta = [(video_path, item[0]*fps, item[1]*fps) for item in list_meta]
+    embeddings = [emb.cpu().numpy() for emb in embeddings_tensor]
+
     return embeddings, list_meta
 
 
 def local_index_pipe(
     video_files: List[str],
-    frame_rate: float,
+    seconds_per_embed: float,
     batch_size: int,
     index_path: str,
     metadata_path: str,
 ) -> None:
     # Build index classes
-    embedder = ClipEmbedder(
-        batch_size=batch_size,
-    )
+    embedder = AudioCLIPWrapper('cpu')
 
     all_embeddings = []
     all_meta = []
 
     for video in tqdm(video_files):
-        embeddings, meta = embed_one_video(embedder, video, frame_rate)
-        all_embeddings.extend(embeddings)
-        all_meta.extend(meta)
+        if embedder.images:
+            embeddings, meta = embed_images_from_one_video(embedder, video, seconds_per_embed)
+            all_embeddings.extend(embeddings)
+            all_meta.extend(meta)
+        if embedder.audio:
+            embeddings, meta = embed_audio_from_one_video(embedder, video)
+            all_embeddings.extend(embeddings)
+            all_meta.extend(meta)
 
     # Saving to local
     with open(index_path, 'wb') as file:
