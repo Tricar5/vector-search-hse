@@ -1,15 +1,19 @@
 from typing import List, Union, Tuple
 
 import clip
+from vs.embedder.AudioCLIP.utils.simple_tokenizer import SimpleTokenizer
 import torch
 from numpy._typing import NDArray
 from abc import ABC, abstractmethod
-from AudioCLIP.model import AudioClip
-from AudioCLIP.utils.transforms import ToTensor1D
+from vs.embedder.AudioCLIP.model.audioclip import AudioCLIP
+from vs.embedder.AudioCLIP.utils.transforms import ToTensor1D
 import torchvision.transforms as TT
 import librosa
 import pathlib
+from PIL import Image
+import numpy as np
 
+_tokenizer = SimpleTokenizer()
 # class ClipEmbedder:
 
 #     def __init__(
@@ -64,32 +68,32 @@ class BaseWrapper(ABC):
         self.audio = False
 
     def preprocess_image(self, image: NDArray) -> torch.Tensor:
-    	"""
-			Эта функция должна реализовывать все трансформации требуемые для модели
-    	"""
+        """
+            Эта функция должна реализовывать все трансформации требуемые для модели
+        """
         raise NotImplementedError("Image processing is not supported by this model")
 
     def process_image(self, batch: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError("Image processing is not supported by this model")
 
     def preprocess_text(self, text: str) -> torch.Tensor:
-    	"""
-			Эта функция должна реализовывать все трансформации требуемые для модели 
-			+ делить текст если он превышает максимальное количество токенов в модели
-    	"""
+        """
+            Эта функция должна реализовывать все трансформации требуемые для модели 
+            + делить текст если он превышает максимальное количество токенов в модели
+        """
         raise NotImplementedError("Text processing is not supported by this model")
 
     def process_text(self, batch: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError("Text processing is not supported by this model")
 
-    def preprocess_audio(self, audio_path: Union[str, pathlib.Path]) -> Tuple[torch.Tensor, List[Tuple[int, int]]]
-    	"""
-			Эта функция должна реализовывать все трансформации требуемые для модели 
-			+ она получает на вход путь до файла, который надо обрабатывать,
-			это сделано, потому что Whisper и AudioCLIP работают с разными способами загрузки данных
-			и разными длинами аудио
-			так же она возвращает meta - информация об отрезках аудио (старт, конец)
-    	"""
+    def preprocess_audio(self, audio_path: Union[str, pathlib.Path]) -> Tuple[torch.Tensor, List[Tuple[int, int]]]:
+        """
+            Эта функция должна реализовывать все трансформации требуемые для модели 
+            + она получает на вход путь до файла, который надо обрабатывать,
+            это сделано, потому что Whisper и AudioCLIP работают с разными способами загрузки данных
+            и разными длинами аудио
+            так же она возвращает meta - информация об отрезках аудио (старт, конец)
+        """
         raise NotImplementedError("Audio processing is not supported by this model")
 
     def process_audio(self, batch: torch.Tensor) -> torch.Tensor:
@@ -120,7 +124,7 @@ class CLIPWrapper(BaseWrapper):
 
         for word in words:
             # токенизируем слово и проверяем, сколько токенов добавится
-            word_tokens = clip._tokenizer.encode(word)
+            word_tokens = _tokenizer.encode(word)
             if current_len + len(word_tokens) <= self.max_tokens:
                 current_chunk.append(word)
                 current_len += len(word_tokens)
@@ -146,7 +150,7 @@ class AudioCLIPWrapper(BaseWrapper):
         self.images = True
         self.text = True
         self.audio = True
-        self.aclp = AudioCLIP(pretrained='AudioClip/assets/AudioCLIP-Full-Training.pt').to(self.device)
+        self.aclp = AudioCLIP(pretrained='AudioCLIP-Full-Training.pt').to(self.device)
         image_size = 224
         image_mean = (0.48145466, 0.4578275, 0.40821073)
         image_std = (0.26862954, 0.26130258, 0.27577711)
@@ -164,7 +168,7 @@ class AudioCLIPWrapper(BaseWrapper):
 
     def process_image(self, batch: torch.Tensor) -> torch.Tensor:
         with torch.no_grad():
-            embeds = self.aclp.encode_image(audio)
+            embeds = self.aclp.encode_image(batch)
         return embeds / embeds.norm(dim=-1, keepdim=True)
 
     def preprocess_text(self, text: str) -> torch.Tensor:
@@ -175,7 +179,7 @@ class AudioCLIPWrapper(BaseWrapper):
 
         for word in words:
             # токенизируем слово и проверяем, сколько токенов добавится
-            word_tokens = clip._tokenizer.encode(word)
+            word_tokens = _tokenizer.encode(word)
             if current_len + len(word_tokens) <= 77: # для CLIP 77 токенов - максимум
                 current_chunk.append(word)
                 current_len += len(word_tokens)
@@ -187,7 +191,6 @@ class AudioCLIPWrapper(BaseWrapper):
 
         if current_chunk:
             chunks.append(' '.join(current_chunk))
-
         return clip.tokenize(chunks).to(self.device)
 
     def process_text(self, batch: torch.Tensor) -> torch.Tensor:
@@ -196,23 +199,22 @@ class AudioCLIPWrapper(BaseWrapper):
         return embeds / embeds.norm(dim=-1, keepdim=True)
 
     def preprocess_audio(self, audio_path: Union[str, pathlib.Path]) -> Tuple[torch.Tensor, List[Tuple[int, int]]]:
-	    track, sr = librosa.load(audio_path, sr=SAMPLE_RATE, mono=True)
-	    chunk_samples = sr * 5
-	    
-	    chunks = []
-	    meta = []
-	    for i in range(0, len(track)/chunk_samples):
-	    	start = i * chunk_samples
-	        chunk = track[start:start + chunk_samples]
-	        meta.append((i, i+5))
-	        
-	        if len(chunk) < chunk_samples:
-	            pad_length = chunk_samples - len(chunk)
-	            chunk = np.pad(chunk, (0, pad_length), 'constant')
-	        transformed = self.audio_transform(chunk.reshape(1, -1))
-	        chunks.append(transformed)
-	    
-	    return torch.stack(chunks).to(self.device), meta
+        track, sr = librosa.load(audio_path, sr=self.sample_rate, mono=True)
+        chunk_samples = sr * 5
+        
+        chunks = []
+        meta = []
+        for i in range(0, len(track)//chunk_samples+1):
+            start = i * chunk_samples
+            chunk = track[start:start + chunk_samples]
+            meta.append((i, i+5))
+            
+            if len(chunk) < chunk_samples:
+                pad_length = chunk_samples - len(chunk)
+                chunk = np.pad(chunk, (0, pad_length), 'constant')
+            transformed = self.audio_transforms(chunk.reshape(1, -1))
+            chunks.append(transformed)
+        return torch.stack(chunks).to(self.device), meta
 
     def process_audio(self, batch) -> torch.Tensor:
         with torch.no_grad():
