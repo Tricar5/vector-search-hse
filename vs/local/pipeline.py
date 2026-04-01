@@ -18,6 +18,7 @@ from vs.frames import (
 )
 
 import cv2
+import torch
 
 logger = logging.getLogger(__name__)
 
@@ -30,14 +31,14 @@ def embed_images_from_one_video(
 
     list_frames = []
     list_meta = []
-    for frame, pos in iter_video_frames(video_path, rate):
+    for frame, pos in iter_video_frames(video_path, seconds_per_embed):
         list_frames.append(embedder.preprocess_image(frame))
         list_meta.append((video_path, pos, pos+1))
 
     if not list_frames:
         return [], list_meta
 
-    batch = torch.stack(list_frames)
+    batch = torch.concat(list_frames, dim=0)
     embeddings_tensor = embedder.process_image(batch)
     embeddings = [emb.cpu().numpy() for emb in embeddings_tensor]
 
@@ -52,11 +53,15 @@ def embed_audio_from_one_video(
     fps = cam.get(cv2.CAP_PROP_FPS)
 
     batch, list_meta = embedder.preprocess_audio(video_path)
-    embeddings_tensor = embedder.process_image(batch)
-    list_meta = [(video_path, item[0]*fps, item[1]*fps) for item in list_meta]
-    embeddings = [emb.cpu().numpy() for emb in embeddings_tensor]
+    try:
+        embeddings_tensor = embedder.process_audio(batch)
+        list_meta = [(video_path, item[0]*fps, item[1]*fps) for item in list_meta]
+        embeddings = [emb.cpu().numpy() for emb in embeddings_tensor]
+        return embeddings, list_meta
+    except:
+        print(batch.shape)
 
-    return embeddings, list_meta
+    return [], []
 
 
 def local_index_pipe(
