@@ -18,6 +18,7 @@ def compute_metrics(df):
     # но для надёжности будем использовать порядок строк (индекс + 1)
     k = 10
     # количество релевантных во всём списке
+    accuracy = rel[:25].sum()/25.
     total_relevant = int(rel.sum())
     
     # reciprocal rank
@@ -53,6 +54,7 @@ def compute_metrics(df):
     return {
         'total_relevant': total_relevant,
         'total_predicted': len(df),   # общее количество документов в выдаче
+        'accuracy': accuracy,
         'reciprocal_rank': reciprocal_rank,
         'precision@10': precision_at_10,
         'recall@10': recall_at_10,
@@ -86,7 +88,7 @@ for file in files:
 # Формируем итоговую таблицу
 df_results = pd.DataFrame(all_results)
 # Переупорядочим колонки согласно заданию
-columns_order = ['query', 'total_relevant', 'total_predicted', 'reciprocal_rank',
+columns_order = ['query', 'total_relevant', 'total_predicted', 'accuracy', 'reciprocal_rank',
                  'precision@10', 'recall@10', 'f1_score@10', 'average_precision@10']
 df_results = df_results[columns_order]
 
