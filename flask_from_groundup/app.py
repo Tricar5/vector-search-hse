@@ -12,29 +12,42 @@ import torch.nn.functional as F
 import subprocess
 import time
 from io import BytesIO
+from vs.embedder.clip import AudioCLIPWrapper, CLIPWrapper
+from collections import Counter
+import pandas as pd
 app = Flask(__name__)
-with open('all_data.pickle', 'rb') as handle:
-    all_data = pickle.load(handle)
 with open('thumbnails_meta.pickle', 'rb') as handle:
     thumbnails_meta = pickle.load(handle)
-dataset, meta = all_data
+# with open('index.pkl', 'rb') as handle:
+#     dataset = pickle.load(handle)
+# with open('metadata.pkl', 'rb') as handle:
+#     meta = pickle.load(handle)
+with open('all_data.pickle', 'rb') as handle:
+    dataset, meta = pickle.load(handle)
 dataset = torch.tensor(np.array(dataset)).cuda()
-
+# dataset /= torch.linalg.norm(dataset, dim=-1, keepdim=True)
+with open('model.pkl', 'rb') as handle:
+    reranker = pickle.load(handle)
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model, preprocess = clip.load("ViT-B/32", device=device)
+# model, preprocess = clip.load("ViT-B/32", device=device)
+# aclp = AudioCLIPWrapper(device)
+aclp = CLIPWrapper(device)
 
+meta_total_frames = Counter([m[0] for m in meta])
+# print(meta_total_frames)
 all_videos = sorted(set([m[0] for m in meta]))
 video_to_int = {v: i for i, v in enumerate(all_videos)}
 int_to_video = {i: v for v, i in video_to_int.items()}
 
 # Формируем мета как GPU массивы
-meta_video_ids = torch.tensor([video_to_int[m[0]] for m in meta],
-                              device="cuda", dtype=torch.int32)
-meta_frame_nums = torch.tensor([m[1] for m in meta],
-                               device="cuda", dtype=torch.int32)
+meta_video_ids = torch.tensor([video_to_int[m[0]] for m in meta], dtype=torch.int32)
+meta_frame_nums_s = torch.tensor([m[1] for m in meta], dtype=torch.int32)
+meta_frame_nums_e = torch.tensor([m[2] for m in meta], dtype=torch.int32)
 
 def brute_force_query_torch(X, x, certainty_threshold):
-    sims = (x @ X.t()).squeeze(0)   # shape: [N]
+    print(x.shape, X.t().shape)
+    sims = (x @ X.t())[0]   # shape: [N]
+#    print(sims)
 
     # Фильтрация по порогу 0.2
     mask = sims >= certainty_threshold
@@ -61,13 +74,40 @@ def upload_image():
     if file.filename != '':
         file = Image.open(file)
         with torch.no_grad():
-            data = model.encode_image(preprocess(file).unsqueeze(0).cuda())#.squeeze()
+            data = aclp.process_image(aclp.preprocess_image(file))#.squeeze()
     if len(data) == 0:
         return redirect('/')
     # data /= torch.linalg.norm(data)
-    data = torch.sign(data)*torch.pow(torch.abs(data),0.25)
-    data /= torch.linalg.norm(data)
-    return render_main_page(data, video_threshold=0.30, frame_threshold=0.2, percentile=1)
+    # data = torch.sign(data)*torch.pow(torch.abs(data),0.25)
+    # data /= torch.linalg.norm(data)
+    return render_main_page(data, video_threshold=0.00, frame_threshold=0.15, percentile=0.9)
+    # return render_main_page(data, video_threshold=0.65, frame_threshold=0.4, percentile=1)
+    # return render_main_page(data, video_threshold=0.72, frame_threshold=0.6, percentile=0.80)
+    # return render_main_page(data, video_threshold=0.6, frame_threshold=0.65, percentile=0.85)
+import tempfile
+@app.route('/load_audio', methods=['POST', 'GET'])
+def upload_audio():
+    if request.method == 'GET':
+        return redirect('/')
+    file = request.files['file']
+    r = int(request.form['start_pos'])
+    data = []
+    if file.filename != '':
+        with tempfile.NamedTemporaryFile(suffix='.mov', delete=False) as temp_file:
+            file.save(temp_file.name)
+            temp_path = temp_file.name
+        batch, _ = aclp.preprocess_audio(temp_path)
+        embedding = aclp.process_audio(batch)
+        print(data)
+        data = embedding[0].unsqueeze(0)
+    if len(data) == 0:
+        return redirect('/')
+    # data = torch.sign(data)*torch.pow(torch.abs(data),0.25)
+    # data /= torch.linalg.norm(data)
+    # data = data.unsqueeze(0)
+    # print(data.shape)
+    # return render_main_page(data, video_threshold=0.0, frame_threshold=0.01, percentile=1)
+    return render_main_page(data, video_threshold=0.01, frame_threshold=0.8, percentile=0.9)
     # return render_main_page(data, video_threshold=0.65, frame_threshold=0.4, percentile=1)
     # return render_main_page(data, video_threshold=0.72, frame_threshold=0.6, percentile=0.80)
     # return render_main_page(data, video_threshold=0.6, frame_threshold=0.65, percentile=0.85)
@@ -80,17 +120,14 @@ def upload_text():
     text = request.form['text']
     if text != '':
         with torch.no_grad():
-            data = model.encode_text(clip.tokenize([text]).cuda())#.squeeze()
-    anti = request.form['anti']
-    if anti != '':
-        with torch.no_grad():
-            data -= 0.5 * model.encode_text(clip.tokenize([anti]).cuda())#.squeeze()
+            data = aclp.process_text(aclp.preprocess_text(text))
     if len(data) == 0:
         print('lol')
         return redirect('/')
-    data /= torch.linalg.norm(data)
-    # return render_main_page(data, video_threshold=0.26, frame_threshold=0.15, percentile=0.9)
-    return render_main_page(data, video_threshold=0.26, frame_threshold=0.2, percentile=0.8)
+    # data /= torch.linalg.norm(data)
+    return render_main_page(data, video_threshold=0.1, frame_threshold=0.05, percentile=0.9, orig_data=text)
+    # return render_main_page(data, video_threshold=0.0, frame_threshold=0.12, percentile=1)
+    # return render_main_page(data, video_threshold=0.01, frame_threshold=0.01, percentile=0.85, orig_data=text)
     # для усреднений 0.25, 0.2, 1 - норм 
 
 def open_and_load_frame(meta_, thumbnail_size=None):
@@ -112,54 +149,153 @@ def open_and_load_frame(meta_, thumbnail_size=None):
     return frame
 
 
+def compute_stats(certs, total_frames):
+    certs = certs.cpu().detach().numpy() if torch.is_tensor(certs) else certs
+    if len(certs) == 0:
+        certs = np.array([0.0])
+    features = {}
+    features['max'] = certs.max().item()
+    features['mean'] = certs.mean().item()
+    features['std'] = certs.std().item()
+    features['perc_90'] = np.percentile(certs, 90).item()
+    features['num_passed'] = len(certs)
+    print(len(certs), total_frames)
+    features['density'] = len(certs) / max(1, total_frames)
+    features['range'] = (certs.max() - certs.min()).item()
+    return features
+
+
 def render_main_page(
         data,
         video_threshold=0.8,
         frame_threshold=0.8,
         percentile=0.8,
-        max_workers=4):
+        orig_data=None):
     s_ = time.time()
     idxs, certs = brute_force_query_torch(dataset, data, frame_threshold)
     certs = certs.cpu()
+    idxs = idxs.cpu()
     video_idxs = meta_video_ids[idxs]
-    video_frames = meta_frame_nums[idxs]
-    
-    video_descriptions = []
-    used_videos = {}
+    video_frames_s = meta_frame_nums_s[idxs]
+    video_frames_e = meta_frame_nums_e[idxs]
 
     vals, order = torch.sort(video_idxs)
-    targets = torch.tensor([video_to_int[v] for v in all_videos],
-                       device=video_idxs.device)
-    order = order.cpu()
-    left  = torch.bucketize(targets, vals, right=False).cpu()
-    right = torch.bucketize(targets, vals, right=True).cpu()
-
-    for i, video in enumerate(all_videos): 
-        if left[i] == right[i]:
-            continue
-        args = order[left[i]:right[i]]
-        cert_ = certs[order[left[i]+int((right[i]-left[i])*(1-percentile))]]
-        if cert_ < video_threshold:
-            continue
-        subset = video_frames[args]
-        start_ = torch.min(subset)
-        end_ = torch.max(subset)
-        max_frame = subset[0]
-        used_videos[video] = (start_.item(), end_.item(), cert_.item())
-        frame_request = f'/image?video={video_to_int[video]}&frame_number={max_frame}'
-        video_descriptions.append((video,frame_request,thumbnails_meta[video][1]))
+    targets = torch.tensor([video_to_int[v] for v in all_videos])
+    left  = torch.bucketize(targets, vals, right=False)
+    right = torch.bucketize(targets, vals, right=True)
     
-    if not video_descriptions:
-        return render_template("index.html", frames=[], used_videos={})
-    print(time.time()-s_)
+    num_videos = len(all_videos)
+    print(certs)
+    
+    lengths = right - left
+    valid = lengths > 0
+    print(torch.sum(valid))
 
-    results = sorted(video_descriptions, key=lambda x: used_videos[x[0]][2], reverse=True)[:100]
+    perc_offsets = (lengths.float() * (1 - percentile)).long()
+    perc_offsets = torch.clamp(perc_offsets, min=0)
+
+    print(certs)
+    perc_idxs = left + perc_offsets
+    perc_idxs = perc_idxs[valid]
+    certs_per_video = certs[order[perc_idxs]]
+    passed = certs_per_video >= video_threshold
+    print(torch.sum(passed))
+
+    final_video_idxs = torch.nonzero(valid)[passed].squeeze(1)
+    final_certs = certs_per_video[passed]
+    frames_sorted_s = video_frames_s[order]
+    frames_sorted_e = video_frames_e[order]
+
+    used_videos = {}
+    video_descriptions = []
+    
+    for i, vid_idx in enumerate(final_video_idxs.tolist()):
+        l,r  = left[vid_idx], right[vid_idx]
+        print(vid_idx, certs[order[l:r]])
+        subset_s = frames_sorted_s[l:r]
+        subset_e = frames_sorted_e[l:r]
+        
+        subset_s = video_frames_s[order[l:r]]
+        subset_e = video_frames_e[order[l:r]]
+
+        start = subset_s.min()
+        end = subset_e.max()
+        max_frame = subset_e[0]
+        
+        video = all_videos[vid_idx]
+
+        stats = compute_stats(certs[order[l:r]], meta_total_frames[video])
+        feature_names = ['max', 'mean', 'std', 'perc_90', 'num_passed', 'range']
+        features_df = pd.DataFrame([[stats[name] for name in feature_names]], columns=feature_names)
+        # Предсказание вероятности
+        prob = reranker.predict_proba(features_df)[0][1]
+
+        used_videos[video] = [
+            start.item(),
+            end.item(),
+            prob
+            #final_certs[i].item()
+        ]
+
+        frame_request = (
+            f"/image?video={video_to_int[video]}"
+            f"&frame_number={max_frame.item()}"
+        )
+
+        video_descriptions.append(
+            (
+                video, 
+                frame_request, 
+                thumbnails_meta[video][1], 
+                stats
+            )
+        )
+
+    results = sorted(
+        video_descriptions,
+        key=lambda x: used_videos[x[0]][2],
+        reverse=True
+    )[:25]
+    
+    # # Для каждого видео подготовим признаки, включая idx (позицию в этом списке)
+    # reranked = []
+    # for idx, (video, frame_request, thumb, stats) in enumerate(results, start=1):
+    #     # Признаки в том же порядке, что и при обучении: ['idx','max','mean','std','perc_90','num_passed','range']
+    #     # density не используем (он был константой)
+    #     features = [
+    #         stats['max'],
+    #         stats['mean'],
+    #         stats['std'],
+    #         stats['perc_90'],
+    #         stats['num_passed'],
+    #         stats['range']
+    #     ]
+    #     # Предсказание вероятности класса 1 (релевантен)
+    #     feature_names = ['max', 'mean', 'std', 'perc_90', 'num_passed', 'range']
+    #     features_df = pd.DataFrame([features], columns=feature_names)
+    #     prob = reranker.predict_proba(features_df)[0][1]
+    #     reranked.append((video, frame_request, thumb, stats, prob))
+    #     used_videos[video][2] = prob
+    
+    # # Сортируем по новой вероятности (по убыванию)
+    # reranked.sort(key=lambda x: x[4], reverse=True)
+    
+    # # Берём топ-25
+    # results = reranked[:25]
+    # Для совместимости с последующим кодом можно преобразовать в формат как было:
+    # results = [(video, frame_request, thumb, stats), ...] без prob
+    # results = [(v, fr, th, st) for v, fr, th, st, _ in results]
+
+    print(time.time()-s_)
 
     return render_template(
         "index.html",
-        frames=results,
-        used_videos=used_videos
+         frames=results,
+         used_videos=used_videos,
+         orig_data=orig_data
     )
+
+
 
 @app.route("/image")
 def serve_image():
@@ -245,7 +381,19 @@ def video_segment():
     resp.headers["Accept-Ranges"] = "bytes"
     return resp
 
-
+@app.route('/download_csv', methods=['POST', 'GET'])
+def download_csv():
+    l = int(request.form['len'])
+    print(request.form.keys())
+    s = 'idx,'+','.join(eval(request.form['1_stats']).keys())+',rel\n'
+    print(s)
+    for i in range(1,l+1):
+        s += f'{i},'
+        s += ','.join(map(str,eval(request.form[f"{i}_stats"]).values()))
+        s += f',{request.form.get(f"{i}_rel", "off")=="on"}\n'
+    with open(f'{request.form["orig_data"]}.csv', 'w') as f:
+        f.write(s)
+    return 'OK'
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
