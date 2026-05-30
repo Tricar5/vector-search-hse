@@ -29,7 +29,8 @@ dependencies = [
     "asyncpg (>=0.31.0,<0.32.0)",
     "python-jose[cryptography] (>=3.5.0,<4.0.0)",
     "prometheus-fastapi-instrumentator (>=7.1.0,<8.0.0)",
-	"librosa"
+	"librosa",
+	"punq (>=0.7.0,<0.8.0)"
 ]
 
 

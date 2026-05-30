@@ -1,9 +1,17 @@
 from typing import List
 
-from typer import Typer, Option, Argument
+from typer import (
+    Argument,
+    Option,
+    Typer,
+)
 
-from vs.local.pipeline import local_index_pipe, local_thumbnails
+from vs.local.pipeline import (
+    local_index_pipe,
+    local_thumbnails,
+)
 from vs.utils import find_files_by_extensions
+
 
 app = Typer()
 
@@ -32,14 +40,16 @@ def make_local_index(
     frame_rate: float = Option(1.0, '--frame-rate', help='Frame Rates to slice'),
     batch_size: int = Option(128, '--batch-size', help='Batch Size'),
     index_path: str = Option('index.pkl', '--index-path', help='Path to store Index'),
-    metadata_path: str = Option('metadata.pkl', '--metadata-path', help='Path to store Metadata'),
+    metadata_path: str = Option(
+        'metadata.pkl', '--metadata-path', help='Path to store Metadata'
+    ),
 ) -> None:
     extensions = extensions.split(',')
     video_files = find_files_by_extensions(video_dir, extensions)
     print(f'Found {len(video_files)} files in {video_dir}')
     local_index_pipe(
         video_files=video_files,
-        frame_rate=frame_rate,
+        seconds_per_embed=frame_rate,
         batch_size=batch_size,
         index_path=index_path,
         metadata_path=metadata_path,
@@ -51,8 +61,12 @@ def make_local_index(
     help='Создание локальных превью',
 )
 def make_local_index(
-    metadata_path: str = Option('metadata.pkl', '--metadata-path', help='Path to store Metadata'),
-    thumbnail_path: str = Option('thumbnails.pkl', '--thumbnail-path', help='Path to store Thumbnails'),
+    metadata_path: str = Option(
+        'metadata.pkl', '--metadata-path', help='Path to store Metadata'
+    ),
+    thumbnail_path: str = Option(
+        'thumbnails.pkl', '--thumbnail-path', help='Path to store Thumbnails'
+    ),
 ) -> None:
     local_thumbnails(
         metadata_path=metadata_path,

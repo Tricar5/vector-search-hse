@@ -1,11 +1,16 @@
+import glob
 import logging
 import os
-
 import pathlib
-import glob
-from typing import Optional, List, Set, Union
+from typing import (
+    List,
+    Optional,
+    Set,
+    Union,
+)
 
 import torch
+
 
 logger = logging.getLogger(__name__)
 
@@ -14,8 +19,6 @@ def get_device() -> str:
     if torch.cuda.is_available():
         return 'cuda'
     return 'cpu'
-
-
 
 
 def find_files_by_extensions(
@@ -50,4 +53,3 @@ def find_all_files_with_pattern(
     files = glob.glob(file_path)
     print(f'Found {len(files)} files with format {pattern}.')
     return files
-
