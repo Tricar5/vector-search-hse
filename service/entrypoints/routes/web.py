@@ -10,6 +10,7 @@ import cv2
 import torch
 from fastapi import (
     APIRouter,
+    Depends,
     Form,
     HTTPException,
     Query,
@@ -26,10 +27,12 @@ from starlette.responses import (
     StreamingResponse,
 )
 
-from service.adapters.files import load_yml_config
-from service.settings import settings
+from service.adapters.engines.base import Engine
+from service.adapters.engines.local import LocalSearchEngine
+from service.di import di
+from service.domain.videos.schemas import VideoDescription
+from service.services.search import SearchService
 from vs.frames import open_and_load_frame
-from vs.local.engine import load_search_index
 
 
 templates = Jinja2Templates(directory='service/templates')
@@ -39,26 +42,28 @@ web_router = APIRouter(
     prefix='',
 )
 
-index_config = load_yml_config(settings.engine_config_path)
 
-search_index = load_search_index(
-    index_config['local']['index_path'],
-    index_config['local']['metadata_path'],
-    index_config['local']['thumbnail_path'],
-    index_config['local']['device'],
-)
+# index_config = load_yml_config(settings.engine_config_path)
+
+# search_index = load_search_index(
+#     index_config['local']['index_path'],
+#     index_config['local']['metadata_path'],
+#     index_config['local']['thumbnail_path'],
+#     index_config['local']['device'],
+# )
 
 
 def render_main_page(
     request: Request,
-    video_descriptions: Any,
-    used_videos: Any,
+    video_descriptions: list[VideoDescription],
 ) -> HTMLResponse:
+    frames = [(desc.start_pos, desc.end_pos, desc.fps) for desc in video_descriptions]
+    used_videos = [desc.path for desc in video_descriptions]
     return templates.TemplateResponse(
         'index.html',
         {
             'request': request,
-            'frames': video_descriptions or [],
+            'frames': frames or [],
             'used_videos': used_videos or {},
         },
     )
@@ -76,8 +81,7 @@ async def main_page(request: Request) -> HTMLResponse:
 
 @web_router.post('/load_image')
 async def upload_image(
-    request: Request,
-    file: UploadFile,
+    request: Request, file: UploadFile, engine: Engine = Depends(di.provide(Engine))
 ) -> Response:
     if not file.filename:
         return RedirectResponse(url='/', status_code=303)
@@ -90,40 +94,32 @@ async def upload_image(
 
     if len(query_tensor) == 0:
         return RedirectResponse('/', status_code=303)
+    video_desc = engine.search_videos_by_image(pil_img)
+    # # Query videos
+    # video_desc, used_videos = search_index.query_videos_by_tensor(
+    #     query_tensor,
+    #     video_threshold=0.30,
+    #     frame_threshold=0.2,
+    #     percentile=1,
+    # )
 
-    # Query videos
-    video_desc, used_videos = search_index.query_videos_by_tensor(
-        query_tensor,
-        video_threshold=0.30,
-        frame_threshold=0.2,
-        percentile=1,
-    )
-
-    return render_main_page(request, video_desc, used_videos)
+    return render_main_page(request, video_desc)
 
 
 @web_router.post('/load_text')
 async def upload_text(
     request: Request,
     text: str = Form(...),
+    engine: Engine = Depends(di.provide(Engine)),
 ) -> Response:
     if not text:
         return RedirectResponse('/', status_code=303)
 
-    with torch.no_grad():
-        query_tensor = search_index.encode_text(text)
-
-    if len(query_tensor) == 0:
-        return RedirectResponse('/', status_code=303)
-
-    video_desc, used_videos = search_index.query_videos_by_tensor(
-        query_tensor,
-        video_threshold=0.2,
-        frame_threshold=0.2,
-        percentile=0.8,
+    video_descriptions = engine.search_videos_by_text(
+        text,
     )
 
-    return render_main_page(request, video_desc, used_videos)
+    return render_main_page(request, video_descriptions)
 
 
 @web_router.get('/image')
@@ -131,8 +127,9 @@ async def serve_image(
     video: int = Query(),
     frame_number: int = Query(),
     thumbnail_size: int | None = Query(default=None),
+    engine: LocalSearchEngine = Depends(di.provide(Engine)),
 ) -> StreamingResponse:
-    int_to_video = search_index.int_to_video
+    int_to_video = engine._int_to_video
     video_path = int_to_video[int(video)]
 
     img, _ = open_and_load_frame((video_path, frame_number), thumbnail_size)

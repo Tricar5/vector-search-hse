@@ -1,11 +1,23 @@
+import pathlib
 import pickle
-from typing import Any, List, Tuple, Dict
-import clip
-from numpy.typing import NDArray
-import numpy as np
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
+import clip
+import numpy as np
 import torch
-from vs.embedder.clip import BaseWrapper, AudioCLIPWrapper
+from numpy.typing import NDArray
+
+from vs.embedder.clip import (
+    AudioCLIPWrapper,
+    BaseWrapper,
+)
 
 
 def brute_force_query_torch(X, x, certainty_threshold):
@@ -31,7 +43,7 @@ class LocalSearchEngine:
         meta: List[Any],
         thumbnails_meta: Dict[str, Any],
         device: str,
-        model: Optional[BaseWrapper]=None
+        model: Optional[BaseWrapper] = None,
     ):
         self.model = model if model else AudioCLIPWrapper(device=device)
         self.dataset = torch.tensor(np.array(index))
@@ -40,21 +52,19 @@ class LocalSearchEngine:
         self.video_to_int = {v: i for i, v in enumerate(self.all_videos)}
         self.int_to_video = {i: v for v, i in self.video_to_int.items()}
         self.meta_video_ids = torch.tensor(
-            [self.video_to_int[m[0]] for m in meta],
-            device='cpu', dtype=torch.int32)
-        self.meta_frame_nums = torch.tensor([m[1] for m in meta],
-                                            device='cpu', dtype=torch.int32)
+            [self.video_to_int[m[0]] for m in meta], device='cpu', dtype=torch.int32
+        )
+        self.meta_frame_nums = torch.tensor(
+            [m[1] for m in meta], device='cpu', dtype=torch.int32
+        )
 
-    def encode_text(
-        self,
-        text: str
-    ) -> torch.Tensor:
+    def encode_text(self, text: str) -> torch.Tensor:
         if self.model.text:
             batch = self.model.preprocess_text(text)
             data = self.model.process_text(batch)
             return data[0:1]
         else:
-            raise NonImplemetedError('Представленная модель не может обрабатывать текст')
+            raise NotImplementedError('Представленная модель не может обрабатывать текст')
 
     def encode_image(
         self,
@@ -65,18 +75,22 @@ class LocalSearchEngine:
             data = self.model.process_image(batch)
             return data[0:1]
         else:
-            raise NonImplemetedError('Представленная модель не может обрабатывать изображения')
+            raise NotImplementedError(
+                'Представленная модель не может обрабатывать изображения'
+            )
 
     def encode_audio(
         self,
-        audio_path: Union[str, pathlib.Path], # потому что разные модели могут потребовать разные способы загрузки аудиоданных
+        audio_path: Union[
+            str, pathlib.Path
+        ],  # потому что разные модели могут потребовать разные способы загрузки аудиоданных
     ) -> torch.Tensor:
         if self.model.audio:
             batch, _ = self.model.preprocess_audio(audio_path)
             data = self.model.process_audio(batch)
             return data[0:1]
         else:
-            raise NonImplemetedError('Представленная модель не может обрабатывать аудио')
+            raise NotImplementedError('Представленная модель не может обрабатывать аудио')
 
     def query_videos_by_tensor(
         self,
@@ -93,11 +107,11 @@ class LocalSearchEngine:
         video_ends = self.meta_frame_ends[idxs]
 
         vals, order = torch.sort(video_idxs)
-        targets = torch.tensor([video_to_int[v] for v in all_videos])
-        left  = torch.bucketize(targets, vals, right=False)
+        targets = torch.tensor([self.video_to_int[v] for v in self.all_videos])
+        left = torch.bucketize(targets, vals, right=False)
         right = torch.bucketize(targets, vals, right=True)
 
-        num_videos = len(all_videos)
+        num_videos = len(self.all_videos)
 
         lengths = right - left
         valid = lengths > 0
@@ -119,7 +133,7 @@ class LocalSearchEngine:
         video_descriptions = []
 
         for i, vid_idx in enumerate(final_video_idxs.tolist()):
-            l,r  = left[vid_idx], right[vid_idx]
+            l, r = left[vid_idx], right[vid_idx]
             subset_s = frames_starts_sorted[l:r]
             subset_e = frames_ends_sorted[l:r]
             start = subset_s.min()
@@ -127,11 +141,7 @@ class LocalSearchEngine:
             max_frame = subset_s[0]
 
             video = self.all_videos[vid_idx]
-            used_videos[video] = (
-                start.item(),
-                end.item(),
-                final_certs[i].item()
-            )
+            used_videos[video] = (start.item(), end.item(), final_certs[i].item())
             frame_request = (
                 f"/image?video={self.video_to_int[video]}"
                 f"&frame_number={max_frame.item()}"
@@ -141,9 +151,7 @@ class LocalSearchEngine:
             )
 
         video_descriptions = sorted(
-            video_descriptions,
-            key=lambda x: used_videos[x[0]][2],
-            reverse=True
+            video_descriptions, key=lambda x: used_videos[x[0]][2], reverse=True
         )[:100]
 
         return video_descriptions, used_videos

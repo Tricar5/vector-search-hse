@@ -35,7 +35,6 @@ jwt.encode({'u':'hse-vector', 'i': 'vector-search-service'},key=os.getenv('AUTH_
 
 ## Метрики
 
-
 Метрики торчат по адресу `/stats`
 
 ### Метрики длительности запросов:

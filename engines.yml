@@ -1,7 +1,7 @@
 local:
-  index_path: 'data/index.pkl'
-  metadata_path: 'data/metadata.pkl'
-  thumbnail_path: 'data/thumbnails.pkl'
+  index_path: 'model/index.pkl'
+  metadata_path: 'model/metadata.pkl'
+  thumbnail_path: 'model/thumbnails.pkl'
   device: cpu
   text:
     video_threshold: 0.26

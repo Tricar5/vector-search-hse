@@ -36,7 +36,7 @@ api_router = APIRouter(
 )
 async def make_forward_predict(
     request_data: ForwardRequestSchema,
-    search_service: SearchService = Depends(lambda: di.get(SearchService)),
+    search_service: SearchService = Depends(lambda: di.provide(SearchService)),
     token: AuthContext = Depends(check_auth),
 ) -> BaseResponseSchema:
     try:
@@ -55,7 +55,7 @@ async def make_forward_predict(
 )
 async def get_historical_results(
     filters: Annotated[InferenceFilters, Query()],
-    search_service: SearchService = Depends(lambda: di.get(SearchService)),
+    search_service: SearchService = Depends(lambda: di.provide(SearchService)),
     token: AuthContext = Depends(check_auth),
 ) -> BaseResponseSchema:
     filters.user = token.payload.user
@@ -73,7 +73,7 @@ async def get_historical_results(
 )
 async def delete_historical_results(
     user: Optional[str] = Query(default=None),
-    search_service: SearchService = Depends(lambda: di.get(SearchService)),
+    search_service: SearchService = Depends(lambda: di.provide(SearchService)),
     token: AuthContext = Depends(check_auth),
 ) -> BaseResponseSchema:
     if not user:
