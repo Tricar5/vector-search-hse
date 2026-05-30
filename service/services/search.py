@@ -49,8 +49,8 @@ class SearchService:
                 processing_time=processing_time,
                 user=user,
             )
-        except Exception as e:
-            logger.error('Cannot store data: ', e)
+        except Exception as exc:
+            logger.error('Cannot store data: ', str(e))
         return videos
 
     async def get_searches(

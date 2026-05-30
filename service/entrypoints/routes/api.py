@@ -15,7 +15,6 @@ from service.di import di
 from service.domain.auth.auth import check_auth
 from service.domain.auth.token import AuthContext
 from service.domain.inference.schemas import InferenceFilters
-from service.domain.internal.errors.exc import ModelException
 from service.domain.internal.schemas import (
     BaseResponseSchema,
     ForwardRequestSchema,
@@ -27,7 +26,7 @@ api_router = APIRouter(
     prefix='/api/v1',
     tags=['API'],
     dependencies=[
-        #Depends(check_auth)
+        # Depends(check_auth)
     ],
 )
 
@@ -42,10 +41,10 @@ async def make_forward_predict(
 ) -> BaseResponseSchema:
 
     videos = await search_service.search_by_text(
-            text=request_data.query,
-            user='unknown',
-        )
-    #except Exception:
+        text=request_data.query,
+        user='unknown',
+    )
+    # except Exception:
     #    raise ModelException('Модель не смогла обработать данные')
     return BaseResponseSchema(answer=videos)
 

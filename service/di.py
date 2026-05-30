@@ -6,6 +6,7 @@ from typing import (
     Type,
     TypeVar,
 )
+
 from punq import (
     Container,
     Scope,

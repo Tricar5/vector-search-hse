@@ -4,10 +4,8 @@ import os
 import subprocess
 from collections.abc import Generator
 from io import BytesIO
-from typing import Any
 
 import cv2
-import torch
 from fastapi import (
     APIRouter,
     Depends,
@@ -31,7 +29,6 @@ from service.adapters.engines.base import Engine
 from service.adapters.engines.local import LocalSearchEngine
 from service.di import di
 from service.domain.videos.schemas import VideoDescription
-from service.services.search import SearchService
 from vs.frames import open_and_load_frame
 
 
@@ -57,14 +54,18 @@ def render_main_page(
     request: Request,
     video_descriptions: list[VideoDescription],
 ) -> HTMLResponse:
-    frames = [(desc.start_pos, desc.end_pos, desc.fps) for desc in video_descriptions]
-    used_videos = [desc.path for desc in video_descriptions]
+    frames = []
+    used_videos: dict[str, tuple[float, float, float]] = {}
+    for desc in video_descriptions:
+        img_url = f'/image?video={desc.video_id}&frame_number={desc.frame_num}'
+        frames.append((desc.path, img_url, desc.fps))
+        used_videos[desc.path] = (desc.start_pos, desc.end_pos, desc.score)
     return templates.TemplateResponse(
         'index.html',
         {
             'request': request,
-            'frames': frames or [],
-            'used_videos': used_videos or {},
+            'frames': frames,
+            'used_videos': used_videos,
         },
     )
 
@@ -86,23 +87,8 @@ async def upload_image(
     if not file.filename:
         return RedirectResponse(url='/', status_code=303)
 
-    # Read image
     pil_img = Image.open(BytesIO(await file.read()))
-
-    with torch.no_grad():
-        query_tensor = search_index.encode_image(pil_img)  # type: ignore
-
-    if len(query_tensor) == 0:
-        return RedirectResponse('/', status_code=303)
     video_desc = engine.search_videos_by_image(pil_img)
-    # # Query videos
-    # video_desc, used_videos = search_index.query_videos_by_tensor(
-    #     query_tensor,
-    #     video_threshold=0.30,
-    #     frame_threshold=0.2,
-    #     percentile=1,
-    # )
-
     return render_main_page(request, video_desc)
 
 

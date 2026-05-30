@@ -15,9 +15,9 @@ from pydantic import (
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from service.db.connections.base import Connector
 from service.db.connections.postgres import Postgres
 from service.db.models.base import Base
+
 
 ModelType = TypeVar('ModelType', bound=Base)
 CreateSchemaType = TypeVar('CreateSchemaType', bound=BaseModel)
