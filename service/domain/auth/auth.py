@@ -20,7 +20,6 @@ from service.domain.auth.user import (
 )
 from service.services.auth_service import AuthService
 
-
 AUTH_HEADER = HTTPBearer(scheme_name='Bearer', auto_error=False)
 
 
@@ -30,7 +29,7 @@ def check_auth(
         Optional[HTTPAuthorizationCredentials],
         Depends(AUTH_HEADER),
     ],
-    auth_service: Annotated[AuthService, Depends(lambda: di.get(AuthService))],
+    auth_service: Annotated[AuthService, Depends(di.provide(AuthService))],
 ) -> AuthContext:
     try:
         token_context = CTX_AUTH_USER.get()

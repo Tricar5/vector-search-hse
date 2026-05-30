@@ -26,7 +26,9 @@ from service.services.search import SearchService
 api_router = APIRouter(
     prefix='/api/v1',
     tags=['API'],
-    dependencies=[Depends(check_auth)],
+    dependencies=[
+        #Depends(check_auth)
+    ],
 )
 
 
@@ -36,16 +38,15 @@ api_router = APIRouter(
 )
 async def make_forward_predict(
     request_data: ForwardRequestSchema,
-    search_service: SearchService = Depends(lambda: di.provide(SearchService)),
-    token: AuthContext = Depends(check_auth),
+    search_service: SearchService = Depends(di.provide(SearchService)),
 ) -> BaseResponseSchema:
-    try:
-        videos = await search_service.search_by_text(
+
+    videos = await search_service.search_by_text(
             text=request_data.query,
-            user=token.payload.user,
+            user='unknown',
         )
-    except Exception:
-        raise ModelException('Модель не смогла обработать данные')
+    #except Exception:
+    #    raise ModelException('Модель не смогла обработать данные')
     return BaseResponseSchema(answer=videos)
 
 
@@ -55,7 +56,7 @@ async def make_forward_predict(
 )
 async def get_historical_results(
     filters: Annotated[InferenceFilters, Query()],
-    search_service: SearchService = Depends(lambda: di.provide(SearchService)),
+    search_service: SearchService = Depends(di.provide(SearchService)),
     token: AuthContext = Depends(check_auth),
 ) -> BaseResponseSchema:
     filters.user = token.payload.user
@@ -73,7 +74,7 @@ async def get_historical_results(
 )
 async def delete_historical_results(
     user: Optional[str] = Query(default=None),
-    search_service: SearchService = Depends(lambda: di.provide(SearchService)),
+    search_service: SearchService = Depends(di.provide(SearchService)),
     token: AuthContext = Depends(check_auth),
 ) -> BaseResponseSchema:
     if not user:

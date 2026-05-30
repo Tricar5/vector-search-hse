@@ -18,7 +18,7 @@ def create_app(settings: AppSettings) -> FastAPI:
     )
 
     app.include_router(api_router)
-    app.include_router(web_router)
+    #app.include_router(web_router)
 
     metrics = di.resolve(MetricsInstrumentator)
 
