@@ -11,8 +11,7 @@ from service.domain.auth.token import (
     AdminUsers,
     TokenPayload,
 )
-from service.settings import AuthConfig
-
+from service.settings import AppSettings
 
 logger = getLogger(__name__)
 
@@ -25,9 +24,9 @@ class UnauthorizedException(Exception):
 class AuthService:
     UNAUTHORIZED = UnauthorizedException
 
-    def __init__(self, config: AuthConfig) -> None:
-        self._pub_key = config.auth_public_key
-        self._private_key = config.auth_private_key
+    def __init__(self, config: AppSettings) -> None:
+        self._pub_key = config.auth.auth_public_key
+        self._private_key = config.auth.auth_private_key
 
     def validate_token(self, token: Optional[str]) -> TokenPayload:
         if not token:

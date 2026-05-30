@@ -1,3 +1,4 @@
+import logging
 import time
 from typing import List
 
@@ -16,6 +17,8 @@ from service.domain.internal.metrics.metrics import (
 )
 from service.domain.videos.schemas import VideoDescription
 
+logger = logging.getLogger(__name__)
+
 
 class SearchService:
 
@@ -27,7 +30,11 @@ class SearchService:
         self._engine = engine
         self._repo = repo
 
-    async def search_by_text(self, text: str, user: str) -> list[VideoDescription]:
+    async def search_by_text(
+        self,
+        text: str,
+        user: str = 'unknown',
+    ) -> list[VideoDescription]:
         st = time.monotonic()
         videos = self._engine.search_videos_by_text(text)
         processing_time = time.monotonic() - st
@@ -35,13 +42,15 @@ class SearchService:
         # Что-то красивоe в разработке
         text_length_metric.observe(len(text))
         token_count_metric.observe(len(text.split()))
-
-        await self._store_results(
-            text=text,
-            videos=videos,
-            processing_time=processing_time,
-            user=user,
-        )
+        try:
+            await self._store_results(
+                text=text,
+                videos=videos,
+                processing_time=processing_time,
+                user=user,
+            )
+        except Exception as e:
+            logger.error('Cannot store data: ', e)
         return videos
 
     async def get_searches(
@@ -61,7 +70,7 @@ class SearchService:
         text: str,
         videos: list[VideoDescription],
         processing_time: float,
-        user: str,
+        user: str = 'unknown',
     ) -> SearchResultSchema:
         return await self._repo.create(
             obj_in=InferenceCreateSchema(

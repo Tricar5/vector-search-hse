@@ -6,13 +6,6 @@ from typing import (
     Type,
     TypeVar,
 )
-
-from dishka import (
-    Provider,
-    Scope,
-    make_container,
-    provide,
-)
 from punq import (
     Container,
     Scope,
@@ -20,7 +13,6 @@ from punq import (
 
 from service.adapters.engines.base import Engine
 from service.adapters.engines.local import LocalSearchEngine
-from service.db.connections.base import Connector
 from service.db.connections.postgres import Postgres
 from service.db.repositories.search import SearchRepository
 from service.domain.internal.metrics.instrumentator import MetricsInstrumentator
