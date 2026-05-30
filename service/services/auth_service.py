@@ -13,6 +13,7 @@ from service.domain.auth.token import (
 )
 from service.settings import AppSettings
 
+
 logger = getLogger(__name__)
 
 

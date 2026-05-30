@@ -20,6 +20,7 @@ from service.domain.auth.user import (
 )
 from service.services.auth_service import AuthService
 
+
 AUTH_HEADER = HTTPBearer(scheme_name='Bearer', auto_error=False)
 
 
