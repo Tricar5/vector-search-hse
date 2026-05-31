@@ -30,7 +30,10 @@ dependencies = [
     "python-jose[cryptography] (>=3.5.0,<4.0.0)",
     "prometheus-fastapi-instrumentator (>=7.1.0,<8.0.0)",
 	"librosa",
-	"punq (>=0.7.0,<0.8.0)"
+	"punq (>=0.7.0,<0.8.0)",
+	"mlflow (>=3.12.0,<4.0.0)",
+	"boto3 (>=1.38.0,<2.0.0)",
+	"seaborn (>=0.13.2,<0.14.0)"
 ]
 
 
