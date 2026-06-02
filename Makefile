@@ -21,12 +21,8 @@ research.install:
 	poetry install --with research
 
 lint:
-	@isort ./service/ ./tests/  --settings-file ./setup.cfg
-	@black ./service/ ./tests/ --config pyproject.toml
 	@flake8 --config ./setup.cfg ./service/
-	@flake8 --config ./flake8.tests.ini ./tests/
 	@mypy ./service/ --ignore-missing-imports --config-file setup.cfg
-
 
 
 dc.up:

@@ -17,6 +17,7 @@ from service.domain.internal.metrics.metrics import (
 )
 from service.domain.videos.schemas import VideoDescription
 
+
 logger = logging.getLogger(__name__)
 
 

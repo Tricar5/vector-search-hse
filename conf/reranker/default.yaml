@@ -1,0 +1,32 @@
+data:
+  path: model/merged_for_boosting.csv
+  features:
+    - max
+    - mean
+    - std
+    - perc_90
+    - num_passed
+    - range
+  target: rel
+  test_size: 0.15
+  val_size: 0.15
+  seed: 42
+
+model:
+  objective: binary
+  metric: auc
+  boosting_type: gbdt
+  num_leaves: 31
+  min_child_samples: 10
+  subsample: 0.9
+  colsample_bytree: 0.9
+  learning_rate: 0.03
+  n_estimators: 500
+  verbose: -1
+
+training:
+  early_stopping_rounds: 20
+  threshold: null
+
+mlflow:
+  experiment: reranker-lgbm
