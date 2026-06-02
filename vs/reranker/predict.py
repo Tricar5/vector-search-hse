@@ -64,26 +64,12 @@ def _load_prd_model(
     return model, threshold, run_id
 
 
-def _make_demo_data() -> pd.DataFrame:
-    return pd.DataFrame(
-        [
-            [0.92, 0.85, 0.05, 0.90, 5, 0.10],
-            [0.45, 0.38, 0.08, 0.43, 1, 0.25],
-            [0.78, 0.70, 0.07, 0.76, 3, 0.15],
-            [0.30, 0.25, 0.03, 0.29, 0, 0.08],
-            [0.95, 0.91, 0.03, 0.94, 6, 0.07],
-        ],
-        columns=FEATURES,
-    )
-
-
 @app.command()
 def run(
     input_path: str = typer.Option(
-        None,
+        ...,
         '--input', '-i',
-        help='CSV с признаками (колонки: max,mean,std,perc_90,num_passed,range). '
-             'Если не задан — используются синтетические демо-данные.',
+        help='CSV с признаками (колонки: max,mean,std,perc_90,num_passed,range).',
     ),
     output_path: str = typer.Option(
         None,
@@ -112,12 +98,12 @@ def run(
     results = df.copy()
     results['pred_proba'] = np.round(proba, 4)
     results['pred_label'] = preds
-    results['verdict'] = np.where(preds == 1, 'РЕЛЕВАНТЕН', 'нерелевантен')
-
+    results['verdict'] = np.where(preds == 1, 'relevant', 'irrelevant')
+    # Косметос для вывода
     typer.echo(f'Порог: {threshold}')
     typer.echo(f'Предсказаний: {len(results)}  |  релевантных: {int(preds.sum())}')
     typer.echo(
-        '\n' + results[['pred_proba', 'pred_label', 'verdict']].head(10).to_string())
+        '\n' + results[['pred_proba', 'pred_label', 'verdict']].sample(10).to_string())
 
     if 'rel' in results.columns:
         auc = roc_auc_score(results['rel'], proba)
