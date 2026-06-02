@@ -1,10 +1,3 @@
-"""Reranker inference script — loads PRD model from MLflow and runs predictions.
-
-Usage:
-    python -m vs.reranker.predict --input data/sample.csv
-    python -m vs.reranker.predict --input data/sample.csv --output results.csv
-    python -m vs.reranker.predict  # uses synthetic demo data
-"""
 import mlflow
 import mlflow.lightgbm
 import numpy as np
@@ -13,7 +6,6 @@ import typer
 from sklearn.metrics import roc_auc_score
 
 from vs.reranker._env import load_mlflow_env
-
 
 FEATURES = [
     'max',
@@ -24,7 +16,9 @@ FEATURES = [
     'range',
 ]
 
-app = typer.Typer(help='Запуск инференса PRD-реранкера из MLflow')
+app = typer.Typer(
+    help='Запуск инференса PRD-реранкера из MLflow',
+)
 
 
 def _load_prd_model(
@@ -47,7 +41,8 @@ def _load_prd_model(
         max_results=1,
     )
     if not runs:
-        typer.echo('PRD-run не найден. Сначала выполните обучение: vs reranker-train', err=True)
+        typer.echo('PRD-run не найден. Сначала выполните обучение: vs reranker-train',
+                   err=True)
         raise typer.Exit(1)
 
     prd_run = runs[0]
@@ -121,7 +116,8 @@ def run(
 
     typer.echo(f'Порог: {threshold}')
     typer.echo(f'Предсказаний: {len(results)}  |  релевантных: {int(preds.sum())}')
-    typer.echo('\n' + results[['pred_proba', 'pred_label', 'verdict']].head(10).to_string())
+    typer.echo(
+        '\n' + results[['pred_proba', 'pred_label', 'verdict']].head(10).to_string())
 
     if 'rel' in results.columns:
         auc = roc_auc_score(results['rel'], proba)
