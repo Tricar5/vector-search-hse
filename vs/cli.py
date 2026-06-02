@@ -1,7 +1,7 @@
-from typing import List
+import sys
 
 from typer import (
-    Argument,
+    Context,
     Option,
     Typer,
 )
@@ -11,7 +11,6 @@ from vs.local.pipeline import (
     local_thumbnails,
 )
 from vs.utils import find_files_by_extensions
-
 
 app = Typer()
 
@@ -72,6 +71,33 @@ def make_local_index(
         metadata_path=metadata_path,
         thumbnail_path=thumbnail_path,
     )
+
+
+@app.command(
+    'reranker-train',
+    help='Обучение реранкера LightGBM с логированием в MLflow.',
+    context_settings={
+        'allow_extra_args': True,
+        'ignore_unknown_options': True,
+    },
+)
+def reranker_train(ctx: Context) -> None:
+    from vs.reranker.train import train
+
+    sys.argv = [sys.argv[0]] + ctx.args
+    train()
+
+
+@app.command(
+    'reranker-predict',
+    help='Инференс PRD-реранкера из MLflow',
+    context_settings={'allow_extra_args': True, 'ignore_unknown_options': True},
+)
+def reranker_predict(ctx: Context) -> None:
+    from vs.reranker.predict import app as predict_app
+
+    sys.argv = [sys.argv[0]] + ctx.args
+    predict_app()
 
 
 if __name__ == "__main__":
