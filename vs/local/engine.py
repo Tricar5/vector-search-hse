@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import pickle
+import time
 from collections import Counter
 from typing import Any
 
@@ -14,6 +16,8 @@ from vs.embedder.clip import (
     CLIPWrapper,
 )
 from vs.frames import open_and_load_frame
+
+logger = logging.getLogger(__name__)
 
 
 class VideoDescription:
@@ -111,9 +115,14 @@ class LocalSearchEngine:
     ) -> list[VideoDescription]:
         if not self._model.text:
             raise NotImplementedError('Loaded model does not support text queries')
+        logger.info('text query: %r  thresholds: frame=%.3f video=%.3f percentile=%.2f',
+                    text, frame_threshold, video_threshold, percentile)
+        t0 = time.monotonic()
         batch = self._model.preprocess_text(text)
         x = self._model.process_text(batch)[0:1]
-        return self._query(x, frame_threshold, video_threshold, percentile)
+        results = self._query(x, frame_threshold, video_threshold, percentile)
+        logger.info('text query done in %.3fs  results=%d', time.monotonic() - t0, len(results))
+        return results
 
     def search_by_image(
         self,
@@ -124,12 +133,17 @@ class LocalSearchEngine:
     ) -> list[VideoDescription]:
         if not self._model.images:
             raise NotImplementedError('Loaded model does not support image queries')
+        logger.info('image query  thresholds: frame=%.3f video=%.3f percentile=%.2f',
+                    frame_threshold, video_threshold, percentile)
+        t0 = time.monotonic()
         batch = self._model.preprocess_image(image)
         x = self._model.process_image(batch)[0:1]
         # power-transform for better image retrieval
         x = torch.sign(x) * torch.pow(torch.abs(x), 0.25)
         x /= torch.linalg.norm(x)
-        return self._query(x, frame_threshold, video_threshold, percentile)
+        results = self._query(x, frame_threshold, video_threshold, percentile)
+        logger.info('image query done in %.3fs  results=%d', time.monotonic() - t0, len(results))
+        return results
 
     def search_by_audio(
         self,
@@ -140,9 +154,14 @@ class LocalSearchEngine:
     ) -> list[VideoDescription]:
         if not self._model.audio:
             raise NotImplementedError('Loaded model does not support audio queries')
+        logger.info('audio query: %r  thresholds: frame=%.3f video=%.3f percentile=%.2f',
+                    audio_path, frame_threshold, video_threshold, percentile)
+        t0 = time.monotonic()
         batch, _ = self._model.preprocess_audio(audio_path)
         x = self._model.process_audio(batch)[0:1]
-        return self._query(x, frame_threshold, video_threshold, percentile)
+        results = self._query(x, frame_threshold, video_threshold, percentile)
+        logger.info('audio query done in %.3fs  results=%d', time.monotonic() - t0, len(results))
+        return results
 
     def _query(
         self,
@@ -152,7 +171,19 @@ class LocalSearchEngine:
         percentile: float,
     ) -> list[VideoDescription]:
         indices, certs = _brute_force_query(self.dataset, x, frame_threshold)
+
+        logger.debug(
+            'frame filter: %d / %d frames passed (threshold=%.3f)  '
+            'scores: min=%.4f mean=%.4f max=%.4f',
+            len(indices), len(self.dataset),
+            frame_threshold,
+            float(certs.min()) if len(certs) else 0.0,
+            float(certs.mean()) if len(certs) else 0.0,
+            float(certs.max()) if len(certs) else 0.0,
+        )
+
         if len(indices) == 0:
+            logger.info('no frames passed frame_threshold=%.3f', frame_threshold)
             return []
 
         video_idxs = self._meta_video_ids[indices]
@@ -166,7 +197,14 @@ class LocalSearchEngine:
 
         lengths = right - left
         valid = lengths > 0
+
+        logger.debug(
+            'video filter: %d / %d videos have ≥1 frame candidate',
+            int(valid.sum()), len(self.all_videos),
+        )
+
         if not torch.any(valid):
+            logger.info('no videos with candidate frames')
             return []
 
         perc_offsets = torch.clamp((lengths.float() * (1 - percentile)).long(), min=0)
@@ -174,7 +212,20 @@ class LocalSearchEngine:
         certs_per_video = certs[order[perc_idxs]]
 
         passed = certs_per_video >= video_threshold
+        n_passed = int(passed.sum())
+
+        logger.debug(
+            'video threshold=%.3f: %d / %d videos passed  '
+            'scores: min=%.4f mean=%.4f max=%.4f',
+            video_threshold,
+            n_passed, int(valid.sum()),
+            float(certs_per_video.min()),
+            float(certs_per_video.mean()),
+            float(certs_per_video.max()),
+        )
+
         if not torch.any(passed):
+            logger.info('no videos passed video_threshold=%.3f', video_threshold)
             return []
 
         final_video_idxs = torch.nonzero(valid).squeeze(1)[passed]
@@ -208,7 +259,22 @@ class LocalSearchEngine:
         videos.sort(key=lambda v: v.score, reverse=True)
 
         if self._reranker is not None:
+            scores_before = [v.score for v in videos]
+            logger.info(
+                'reranker: candidates=%d  score before — mean=%.4f min=%.4f max=%.4f',
+                len(videos),
+                float(np.mean(scores_before)),
+                float(np.min(scores_before)),
+                float(np.max(scores_before)),
+            )
             videos = self._reranker.rerank(videos, certs_map, self._meta_total_frames)
+            scores_after = [v.score for v in videos]
+            logger.info(
+                'reranker: done  score after  — mean=%.4f min=%.4f max=%.4f',
+                float(np.mean(scores_after)),
+                float(np.min(scores_after)),
+                float(np.max(scores_after)),
+            )
 
         return videos[:25]
 
