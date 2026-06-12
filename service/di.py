@@ -16,14 +16,12 @@ from service.adapters.engines.base import Engine
 from service.adapters.engines.local import LocalSearchEngine
 from service.db.connections.postgres import Postgres
 from service.db.repositories.search import SearchRepository
-from service.domain.internal.metrics.instrumentator import MetricsInstrumentator
 from service.services.auth_service import AuthService
 from service.services.search import SearchService
 from service.settings import (
     AppSettings,
-    get_settings,
+    settings,
 )
-
 
 ClassT = TypeVar('ClassT')
 
@@ -59,12 +57,6 @@ class DI:
 
     def _register_infrastructure(self, settings: AppSettings) -> None:
         self._container.register(
-            MetricsInstrumentator,
-            instance=MetricsInstrumentator(),
-            scope=Scope.singleton,
-        )
-        # AuthService регистрируется после repos — см. _register_services
-        self._container.register(
             Postgres,
             factory=lambda: Postgres(settings.db),
             scope=Scope.singleton,
@@ -95,4 +87,4 @@ class DI:
 
 ROOT_PATH = Path(__file__).parent.parent
 SETTINGS_PATH = ROOT_PATH / 'settings'
-di: Final[DI] = DI().register_all(settings=get_settings())
+di: Final[DI] = DI().register_all(settings)

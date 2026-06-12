@@ -1,7 +1,10 @@
 # flake8: noqa WPS339, WPS110
+import csv
+import io
 import logging
 import os
 import subprocess
+import tempfile
 from collections.abc import Generator
 from io import BytesIO
 
@@ -29,30 +32,20 @@ from service.adapters.engines.base import Engine
 from service.adapters.engines.local import LocalSearchEngine
 from service.di import di
 from service.domain.videos.schemas import VideoDescription
+from service.services.search import SearchService
 from vs.frames import open_and_load_frame
 
 
 templates = Jinja2Templates(directory='service/templates')
 
 logger = logging.getLogger(__name__)
-web_router = APIRouter(
-    prefix='',
-)
-
-
-# index_config = load_yml_config(settings.engine_config_path)
-
-# search_index = load_search_index(
-#     index_config['local']['index_path'],
-#     index_config['local']['metadata_path'],
-#     index_config['local']['thumbnail_path'],
-#     index_config['local']['device'],
-# )
+web_router = APIRouter(prefix='')
 
 
 def render_main_page(
     request: Request,
     video_descriptions: list[VideoDescription],
+    orig_data: str | None = None,
 ) -> HTMLResponse:
     frames = []
     used_videos: dict[str, tuple[float, float, float]] = {}
@@ -66,29 +59,27 @@ def render_main_page(
             'request': request,
             'frames': frames,
             'used_videos': used_videos,
+            'orig_data': orig_data,
         },
     )
 
 
 @web_router.get('/', response_class=HTMLResponse)
 async def main_page(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(
-        'index.html',
-        {
-            'request': request,
-        },
-    )
+    return templates.TemplateResponse('index.html', {'request': request})
 
 
 @web_router.post('/load_image')
 async def upload_image(
-    request: Request, file: UploadFile, engine: Engine = Depends(di.provide(Engine))
+    request: Request,
+    file: UploadFile,
+    search_service: SearchService = Depends(di.provide(SearchService)),
 ) -> Response:
     if not file.filename:
         return RedirectResponse(url='/', status_code=303)
 
     pil_img = Image.open(BytesIO(await file.read()))
-    video_desc = engine.search_videos_by_image(pil_img)
+    video_desc = await search_service.search_by_image(pil_img)
     return render_main_page(request, video_desc)
 
 
@@ -96,16 +87,74 @@ async def upload_image(
 async def upload_text(
     request: Request,
     text: str = Form(...),
-    engine: Engine = Depends(di.provide(Engine)),
+    search_service: SearchService = Depends(di.provide(SearchService)),
 ) -> Response:
     if not text:
         return RedirectResponse('/', status_code=303)
 
-    video_descriptions = engine.search_videos_by_text(
-        text,
-    )
+    video_descriptions = await search_service.search_by_text(text)
+    return render_main_page(request, video_descriptions, orig_data=text)
 
-    return render_main_page(request, video_descriptions)
+
+@web_router.post('/load_audio')
+async def upload_audio(
+    request: Request,
+    file: UploadFile,
+    search_service: SearchService = Depends(di.provide(SearchService)),
+) -> Response:
+    if not file.filename:
+        return RedirectResponse(url='/', status_code=303)
+
+    suffix = os.path.splitext(file.filename)[1] or '.wav'
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(await file.read())
+        tmp_path = tmp.name
+
+    try:
+        video_desc = await search_service.search_by_audio(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    return render_main_page(request, video_desc)
+
+
+@web_router.post('/download_csv')
+async def download_csv(
+    request: Request,
+) -> StreamingResponse:
+    form = await request.form()
+    total = int(form.get('len', 0))
+    orig_data = form.get('orig_data', 'results')
+
+    fieldnames = ['idx', 'max', 'mean', 'std', 'perc_90', 'num_passed', 'range', 'rel']
+
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=fieldnames)
+    writer.writeheader()
+
+    import ast
+    for i in range(1, total + 1):
+        raw_stats = form.get(f'{i}_stats', '{}')
+        stats: dict = ast.literal_eval(raw_stats) if isinstance(raw_stats, str) else {}
+        rel = form.get(f'{i}_rel', 'off') == 'on'
+        writer.writerow({
+            'idx': i,
+            'max': stats.get('max', ''),
+            'mean': stats.get('mean', ''),
+            'std': stats.get('std', ''),
+            'perc_90': stats.get('perc_90', ''),
+            'num_passed': stats.get('num_passed', ''),
+            'range': stats.get('range', ''),
+            'rel': rel,
+        })
+
+    buf.seek(0)
+    filename = f'{orig_data}.csv'
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type='text/csv',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
 
 
 @web_router.get('/image')
@@ -132,7 +181,6 @@ async def serve_image(
     fn = os.path.basename(video_path).rsplit('.', 1)[0]
     if frame_number != -1:
         fn = f'{fn}_frame_{frame_number}'
-
     if thumbnail_size:
         fn += '_thumbnail'  # noqa: WPS336
     filename = f'{fn}.jpg'
@@ -163,36 +211,22 @@ async def video_segment(
 
     cmd = [
         'ffmpeg',
-        '-ss',
-        str(start_seconds),
-        '-i',
-        path,
-        '-t',
-        str(duration),
-        '-c:v',
-        'libx264',
-        '-preset',
-        'veryfast',
-        '-c:a',
-        'aac',
-        '-movflags',
-        'frag_keyframe+empty_moov+default_base_moof',
-        '-f',
-        'mp4',
-        '-crf',
-        '29',
+        '-ss', str(start_seconds),
+        '-i', path,
+        '-t', str(duration),
+        '-c:v', 'libx264',
+        '-preset', 'veryfast',
+        '-c:a', 'aac',
+        '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+        '-f', 'mp4',
+        '-crf', '29',
         '-',
     ]
 
     def generate() -> Generator[bytes, None, None]:  # noqa: WPS430
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-        )
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         try:
-            FILE_SIZE = 64 * 1024  # noqa: WPS432
-            yield from iter(lambda: proc.stdout.read(), b'')  # type: ignore
+            yield from iter(lambda: proc.stdout.read(64 * 1024), b'')  # type: ignore
         except Exception as exc:
             logger.exception(exc)
         finally:

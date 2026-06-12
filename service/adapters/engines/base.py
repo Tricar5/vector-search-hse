@@ -15,40 +15,20 @@ FloatArray = NDArray[np.floating[Any]]
 
 
 class Engine(ABC):
-    """
-    Base interface for local video search engines.
-
-    Defines public API for:
-    - text search
-    - image search
-    """
-
-    # === Public API ===
 
     @abstractmethod
     def search_videos_by_text(self, text: str) -> list[VideoDescription]:
-        """
-        Search videos by text query.
-        """
         raise NotImplementedError
 
     @abstractmethod
-    def search_videos_by_image(
-        self,
-        img: FloatArray,
-    ) -> list[VideoDescription]:
-        """
-        Search videos by image.
-        """
+    def search_videos_by_image(self, img: FloatArray) -> list[VideoDescription]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def search_videos_by_audio(self, audio_path: str) -> list[VideoDescription]:
         raise NotImplementedError
 
     @classmethod
     @abstractmethod
-    def build_engine(
-        cls,
-        settings: AppSettings,
-    ) -> "Engine":
-        """
-        Load engine with index and metadata from disk.
-        """
+    def build_engine(cls, settings: AppSettings) -> 'Engine':
         raise NotImplementedError

@@ -21,8 +21,9 @@ from vs.embedder.AudioCLIP.model.audioclip import AudioCLIP
 from vs.embedder.AudioCLIP.utils.simple_tokenizer import SimpleTokenizer
 from vs.embedder.AudioCLIP.utils.transforms import ToTensor1D
 
-
 _tokenizer = SimpleTokenizer('data/bpe_simple_vocab_16e6.txt.gz')
+
+
 # class ClipEmbedder:
 
 #     def __init__(
@@ -118,7 +119,8 @@ class CLIPWrapper(BaseWrapper):
         self.images = True
         self.text = True
         self.audio = False
-        self.model, self.preprocessor = clip.load('ViT-B/32').to(self.device)
+        self.model, self.preprocessor = clip.load('ViT-B/32')
+        self.model.to(self.device)
         self.max_tokens = 77  # для CLIP 77 токенов - максимум
 
     def preprocess_image(self, image: NDArray) -> torch.Tensor:
@@ -224,7 +226,7 @@ class AudioCLIPWrapper(BaseWrapper):
         meta = []
         for i in range(0, len(track) // chunk_samples + 1):
             start = i * chunk_samples
-            chunk = track[start : start + chunk_samples]
+            chunk = track[start: start + chunk_samples]
             meta.append((i, i + 5))
 
             if len(chunk) < chunk_samples:
