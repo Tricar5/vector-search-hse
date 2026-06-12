@@ -40,18 +40,58 @@ class SearchService:
         videos = self._engine.search_videos_by_text(text)
         processing_time = time.monotonic() - st
 
-        # Что-то красивоe в разработке
         text_length_metric.observe(len(text))
         token_count_metric.observe(len(text.split()))
         try:
             await self._store_results(
-                text=text,
+                query=text,
+                query_type=InputQueryType.TEXT,
                 videos=videos,
                 processing_time=processing_time,
                 user=user,
             )
         except Exception as exc:
-            logger.error('Cannot store data: ', str(e))
+            logger.error('Cannot store data: %s', exc)
+        return videos
+
+    async def search_by_image(
+        self,
+        img: object,
+        user: str = 'unknown',
+    ) -> list[VideoDescription]:
+        st = time.monotonic()
+        videos = self._engine.search_videos_by_image(img)  # type: ignore[arg-type]
+        processing_time = time.monotonic() - st
+        try:
+            await self._store_results(
+                query='<image>',
+                query_type=InputQueryType.IMAGE,
+                videos=videos,
+                processing_time=processing_time,
+                user=user,
+            )
+        except Exception as exc:
+            logger.error('Cannot store data: %s', exc)
+        return videos
+
+    async def search_by_audio(
+        self,
+        audio_path: str,
+        user: str = 'unknown',
+    ) -> list[VideoDescription]:
+        st = time.monotonic()
+        videos = self._engine.search_videos_by_audio(audio_path)
+        processing_time = time.monotonic() - st
+        try:
+            await self._store_results(
+                query='<audio>',
+                query_type=InputQueryType.AUDIO,
+                videos=videos,
+                processing_time=processing_time,
+                user=user,
+            )
+        except Exception as exc:
+            logger.error('Cannot store data: %s', exc)
         return videos
 
     async def get_searches(
@@ -63,21 +103,21 @@ class SearchService:
     async def delete_searches(self, user: str, token: AuthContext) -> None:
         if not token.is_admin and user != token.payload.user:
             return
-
         await self._repo.delete_history(user_to_delete=user)
 
     async def _store_results(
         self,
-        text: str,
+        query: str,
+        query_type: InputQueryType,
         videos: list[VideoDescription],
         processing_time: float,
         user: str = 'unknown',
     ) -> SearchResultSchema:
         return await self._repo.create(
             obj_in=InferenceCreateSchema(
-                query=text,
-                query_type=InputQueryType.TEXT,
-                result={'videos': videos},
+                query=query,
+                query_type=query_type,
+                result={'videos': [v.model_dump() for v in videos]},
                 processing_time=processing_time,
                 user=user,
             ),

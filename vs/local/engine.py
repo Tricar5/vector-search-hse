@@ -1,15 +1,9 @@
-import pathlib
-import pickle
-from typing import (
-    Any,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Union,
-)
+from __future__ import annotations
 
-import clip
+import pickle
+from collections import Counter
+from typing import Any
+
 import numpy as np
 import torch
 from numpy.typing import NDArray
@@ -17,159 +11,225 @@ from numpy.typing import NDArray
 from vs.embedder.clip import (
     AudioCLIPWrapper,
     BaseWrapper,
+    CLIPWrapper,
 )
+from vs.frames import open_and_load_frame
 
 
-def brute_force_query_torch(X, x, certainty_threshold):
-    sims = (x @ X.t()).squeeze(0)  # shape: [N]
+class VideoDescription:
+    """Lightweight result descriptor — no pydantic dep in vs package."""
 
-    # Фильтрация по порогу 0.2
-    mask = sims >= certainty_threshold
-    filtered_indices = torch.nonzero(mask).squeeze(1)  # индексы в X
-    filtered_sims = sims[filtered_indices]
-
-    # Сортировка по убыванию
-    sorted_sims, order = torch.sort(filtered_sims, descending=True)
-    sorted_indices = filtered_indices[order]
-
-    return sorted_indices, sorted_sims.float()
-
-
-class LocalSearchEngine:
+    __slots__ = (
+        'name', 'path', 'video_id', 'frame_num', 'frame_num_end',
+        'fps', 'start_pos', 'end_pos', 'score',
+    )
 
     def __init__(
         self,
-        index: List[NDArray],
-        meta: List[Any],
-        thumbnails_meta: Dict[str, Any],
-        device: str,
-        model: Optional[BaseWrapper] = None,
-    ):
-        self.model = model if model else AudioCLIPWrapper(device=device)
+        name: str,
+        path: str,
+        video_id: int,
+        frame_num: int,
+        frame_num_end: int,
+        fps: int,
+        start_pos: float,
+        end_pos: float,
+        score: float,
+    ) -> None:
+        self.name = name
+        self.path = path
+        self.video_id = video_id
+        self.frame_num = frame_num
+        self.frame_num_end = frame_num_end
+        self.fps = fps
+        self.start_pos = start_pos
+        self.end_pos = end_pos
+        self.score = score
+
+    def replace(self, **kwargs: Any) -> 'VideoDescription':
+        fields = {s: getattr(self, s) for s in self.__slots__}
+        fields.update(kwargs)
+        return VideoDescription(**fields)
+
+    def __repr__(self) -> str:
+        return f'VideoDescription(name={self.name!r}, score={self.score:.4f})'
+
+
+def _brute_force_query(
+    X: torch.Tensor,
+    x: torch.Tensor,
+    threshold: float,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    sims = (x @ X.t()).squeeze(0)
+    mask = sims >= threshold
+    indices = torch.nonzero(mask).squeeze(1)
+    sims_filtered = sims[indices]
+    sorted_sims, order = torch.sort(sims_filtered, descending=True)
+    return indices[order].cpu(), sorted_sims.float().cpu()
+
+
+class LocalSearchEngine:
+    """
+    Canonical video search engine backed by a CLIP/AudioCLIP index.
+
+    Supports text, image and audio queries.
+    An optional reranker (sklearn-compatible predict_proba) can be injected.
+    """
+
+    def __init__(
+        self,
+        index: list[NDArray[np.floating[Any]]],
+        meta: list[Any],
+        thumbnails_meta: dict[str, Any],
+        model: BaseWrapper,
+        reranker: Any | None = None,
+    ) -> None:
+        self._model = model
+        self._reranker = reranker
         self.dataset = torch.tensor(np.array(index))
         self.thumbnails_meta = thumbnails_meta
-        self.all_videos = sorted(set([m[0] for m in meta]))
-        self.video_to_int = {v: i for i, v in enumerate(self.all_videos)}
-        self.int_to_video = {i: v for v, i in self.video_to_int.items()}
-        self.meta_video_ids = torch.tensor(
-            [self.video_to_int[m[0]] for m in meta], device='cpu', dtype=torch.int32
+        self.all_videos: list[str] = sorted(set(m[0] for m in meta))
+        self._video_to_int: dict[str, int] = {v: i for i, v in enumerate(self.all_videos)}
+        self._int_to_video: dict[int, str] = {i: v for v, i in self._video_to_int.items()}
+        self._meta_video_ids = torch.tensor(
+            [self._video_to_int[m[0]] for m in meta], dtype=torch.int32,
         )
-        self.meta_frame_nums = torch.tensor(
-            [m[1] for m in meta], device='cpu', dtype=torch.int32
+        self._meta_frame_starts = torch.tensor(
+            [m[1] for m in meta], dtype=torch.int32,
         )
+        self._meta_frame_ends = torch.tensor(
+            [m[2] if len(m) > 2 else m[1] for m in meta], dtype=torch.int32,
+        )
+        self._meta_total_frames: Counter[str] = Counter(m[0] for m in meta)
 
-    def encode_text(self, text: str) -> torch.Tensor:
-        if self.model.text:
-            batch = self.model.preprocess_text(text)
-            data = self.model.process_text(batch)
-            return data[0:1]
-        else:
-            raise NotImplementedError('Представленная модель не может обрабатывать текст')
-
-    def encode_image(
+    def search_by_text(
         self,
-        image: NDArray,
-    ) -> torch.Tensor:
-        if self.model.images:
-            batch = self.model.preprocess_image(image)
-            data = self.model.process_image(batch)
-            return data[0:1]
-        else:
-            raise NotImplementedError(
-                'Представленная модель не может обрабатывать изображения'
-            )
+        text: str,
+        frame_threshold: float = 0.26,
+        video_threshold: float = 0.5,
+        percentile: float = 0.8,
+    ) -> list[VideoDescription]:
+        if not self._model.text:
+            raise NotImplementedError('Loaded model does not support text queries')
+        batch = self._model.preprocess_text(text)
+        x = self._model.process_text(batch)[0:1]
+        return self._query(x, frame_threshold, video_threshold, percentile)
 
-    def encode_audio(
+    def search_by_image(
         self,
-        audio_path: Union[
-            str, pathlib.Path
-        ],  # потому что разные модели могут потребовать разные способы загрузки аудиоданных
-    ) -> torch.Tensor:
-        if self.model.audio:
-            batch, _ = self.model.preprocess_audio(audio_path)
-            data = self.model.process_audio(batch)
-            return data[0:1]
-        else:
-            raise NotImplementedError('Представленная модель не может обрабатывать аудио')
+        image: Any,
+        frame_threshold: float = 0.26,
+        video_threshold: float = 0.5,
+        percentile: float = 0.8,
+    ) -> list[VideoDescription]:
+        if not self._model.images:
+            raise NotImplementedError('Loaded model does not support image queries')
+        batch = self._model.preprocess_image(image)
+        x = self._model.process_image(batch)[0:1]
+        # power-transform for better image retrieval
+        x = torch.sign(x) * torch.pow(torch.abs(x), 0.25)
+        x /= torch.linalg.norm(x)
+        return self._query(x, frame_threshold, video_threshold, percentile)
 
-    def query_videos_by_tensor(
+    def search_by_audio(
+        self,
+        audio_path: str,
+        frame_threshold: float = 0.8,
+        video_threshold: float = 0.01,
+        percentile: float = 0.9,
+    ) -> list[VideoDescription]:
+        if not self._model.audio:
+            raise NotImplementedError('Loaded model does not support audio queries')
+        batch, _ = self._model.preprocess_audio(audio_path)
+        x = self._model.process_audio(batch)[0:1]
+        return self._query(x, frame_threshold, video_threshold, percentile)
+
+    def _query(
         self,
         x: torch.Tensor,
         frame_threshold: float,
-        percentile: float,
         video_threshold: float,
-    ) -> Tuple[List[Tuple[str, str, int]], Dict[str, Tuple[int, int, float]]]:
-        idxs, certs = brute_force_query_torch(self.dataset, x, frame_threshold)
-        certs = certs.cpu()
-        idxs = idxs.cpu()
-        video_idxs = self.meta_video_ids[idxs]
-        video_starts = self.meta_frame_starts[idxs]
-        video_ends = self.meta_frame_ends[idxs]
+        percentile: float,
+    ) -> list[VideoDescription]:
+        indices, certs = _brute_force_query(self.dataset, x, frame_threshold)
+        if len(indices) == 0:
+            return []
+
+        video_idxs = self._meta_video_ids[indices]
+        frame_starts = self._meta_frame_starts[indices]
+        frame_ends = self._meta_frame_ends[indices]
 
         vals, order = torch.sort(video_idxs)
-        targets = torch.tensor([self.video_to_int[v] for v in self.all_videos])
+        targets = torch.tensor([self._video_to_int[v] for v in self.all_videos])
         left = torch.bucketize(targets, vals, right=False)
         right = torch.bucketize(targets, vals, right=True)
 
-        num_videos = len(self.all_videos)
-
         lengths = right - left
         valid = lengths > 0
+        if not torch.any(valid):
+            return []
 
-        perc_offsets = (lengths.float() * (1 - percentile)).long()
-        perc_offsets = torch.clamp(perc_offsets, min=0)
-
-        perc_idxs = left + perc_offsets
-        perc_idxs = perc_idxs[valid]
+        perc_offsets = torch.clamp((lengths.float() * (1 - percentile)).long(), min=0)
+        perc_idxs = (left + perc_offsets)[valid]
         certs_per_video = certs[order[perc_idxs]]
+
         passed = certs_per_video >= video_threshold
+        if not torch.any(passed):
+            return []
 
-        final_video_idxs = torch.nonzero(valid)[passed].squeeze(1)
+        final_video_idxs = torch.nonzero(valid).squeeze(1)[passed]
         final_certs = certs_per_video[passed]
-        frames_starts_sorted = video_starts[order]
-        frames_ends_sorted = video_ends[order]
+        starts_sorted = frame_starts[order]
+        ends_sorted = frame_ends[order]
 
-        used_videos = {}
-        video_descriptions = []
+        videos: list[VideoDescription] = []
+        certs_map: dict[str, torch.Tensor] = {}
 
         for i, vid_idx in enumerate(final_video_idxs.tolist()):
-            l, r = left[vid_idx], right[vid_idx]
-            subset_s = frames_starts_sorted[l:r]
-            subset_e = frames_ends_sorted[l:r]
-            start = subset_s.min()
-            end = subset_e.max()
-            max_frame = subset_s[0]
+            l, r = left[vid_idx].item(), right[vid_idx].item()
+            subset_s = starts_sorted[l:r]
+            subset_e = ends_sorted[l:r]
+            video_path = self.all_videos[vid_idx]
 
-            video = self.all_videos[vid_idx]
-            used_videos[video] = (start.item(), end.item(), final_certs[i].item())
-            frame_request = (
-                f"/image?video={self.video_to_int[video]}"
-                f"&frame_number={max_frame.item()}"
-            )
-            video_descriptions.append(
-                (video, frame_request, self.thumbnails_meta[video][1])
-            )
+            certs_map[video_path] = certs[order[l:r]]
 
-        video_descriptions = sorted(
-            video_descriptions, key=lambda x: used_videos[x[0]][2], reverse=True
-        )[:100]
+            videos.append(VideoDescription(
+                name=video_path.split('/')[-1],
+                path=video_path,
+                video_id=self._video_to_int[video_path],
+                frame_num=int(subset_s[0].item()),
+                frame_num_end=int(subset_e[0].item()),
+                fps=self.thumbnails_meta[video_path][1],
+                start_pos=float(subset_s.min().item()),
+                end_pos=float(subset_e.max().item()),
+                score=float(final_certs[i].item()),
+            ))
 
-        return video_descriptions, used_videos
+        videos.sort(key=lambda v: v.score, reverse=True)
 
+        if self._reranker is not None:
+            videos = self._reranker.rerank(videos, certs_map, self._meta_total_frames)
 
-def load_search_index(
-    index_path: str,
-    metadata_path: str,
-    thumbnail_path: str,
-    device: str = 'cpu',
-) -> LocalSearchEngine:
-    with open(index_path, 'rb') as handle:
-        dataset = pickle.load(handle)
+        return videos[:25]
 
-    with open(metadata_path, 'rb') as handle:
-        meta = pickle.load(handle)
+    @classmethod
+    def from_pickle(
+        cls,
+        index_path: str,
+        metadata_path: str,
+        thumbnail_path: str,
+        device: str = 'cpu',
+        model: BaseWrapper | None = None,
+        reranker: Any | None = None,
+    ) -> 'LocalSearchEngine':
+        with open(index_path, 'rb') as fh:
+            index = pickle.load(fh)
+        with open(metadata_path, 'rb') as fh:
+            meta = pickle.load(fh)
+        with open(thumbnail_path, 'rb') as fh:
+            thumbnails_meta = pickle.load(fh)
 
-    with open(thumbnail_path, 'rb') as handle:
-        thumbnails_meta = pickle.load(handle)
+        if model is None:
+            model = CLIPWrapper(device=device)
 
-    return LocalSearchEngine(dataset, meta, thumbnails_meta, device=device)
+        return cls(index, meta, thumbnails_meta, model=model, reranker=reranker)

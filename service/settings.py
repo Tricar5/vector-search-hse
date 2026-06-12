@@ -39,9 +39,7 @@ class AppSettings(_Settings):
 
 
 def get_settings(env_file: str = '.env') -> AppSettings:
-    """Settings Factory"""
     load_dotenv(find_dotenv(env_file))
     return AppSettings()
-
 
 settings = get_settings()

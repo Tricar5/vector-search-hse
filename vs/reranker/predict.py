@@ -107,7 +107,7 @@ def run(
 
     if 'rel' in results.columns:
         auc = roc_auc_score(results['rel'], proba)
-        typer.echo(f'\nAUC на переданных данных: {auc:.4f}')
+        typer.echo(f'AUC на переданных данных: {auc:.4f}')
 
     if output_path:
         results.to_csv(output_path, index=False)

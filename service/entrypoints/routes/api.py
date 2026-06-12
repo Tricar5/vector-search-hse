@@ -1,3 +1,6 @@
+import os
+import tempfile
+from io import BytesIO
 from typing import (
     Annotated,
     Optional,
@@ -8,8 +11,10 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
+    UploadFile,
     status,
 )
+from PIL import Image
 
 from service.di import di
 from service.domain.auth.auth import check_auth
@@ -39,13 +44,54 @@ async def make_forward_predict(
     request_data: ForwardRequestSchema,
     search_service: SearchService = Depends(di.provide(SearchService)),
 ) -> BaseResponseSchema:
-
     videos = await search_service.search_by_text(
         text=request_data.query,
         user='unknown',
     )
-    # except Exception:
-    #    raise ModelException('Модель не смогла обработать данные')
+    return BaseResponseSchema(answer=videos)
+
+
+@api_router.post(
+    path='/forward/image',
+    status_code=status.HTTP_200_OK,
+)
+async def make_forward_predict_image(
+    file: UploadFile,
+    search_service: SearchService = Depends(di.provide(SearchService)),
+) -> BaseResponseSchema:
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='No file provided',
+        )
+    pil_img = Image.open(BytesIO(await file.read()))
+    videos = await search_service.search_by_image(pil_img, user='unknown')
+    return BaseResponseSchema(answer=videos)
+
+
+@api_router.post(
+    path='/forward/audio',
+    status_code=status.HTTP_200_OK,
+)
+async def make_forward_predict_audio(
+    file: UploadFile,
+    search_service: SearchService = Depends(di.provide(SearchService)),
+) -> BaseResponseSchema:
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='No file provided',
+        )
+    suffix = os.path.splitext(file.filename)[1] or '.wav'
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(await file.read())
+        tmp_path = tmp.name
+
+    try:
+        videos = await search_service.search_by_audio(tmp_path, user='unknown')
+    finally:
+        os.unlink(tmp_path)
+
     return BaseResponseSchema(answer=videos)
 
 
