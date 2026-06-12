@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import pickle
 import time
@@ -11,11 +9,9 @@ import torch
 from numpy.typing import NDArray
 
 from vs.embedder.clip import (
-    AudioCLIPWrapper,
     BaseWrapper,
     CLIPWrapper,
 )
-from vs.frames import open_and_load_frame
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +117,8 @@ class LocalSearchEngine:
         batch = self._model.preprocess_text(text)
         x = self._model.process_text(batch)[0:1]
         results = self._query(x, frame_threshold, video_threshold, percentile)
-        logger.info('text query done in %.3fs  results=%d', time.monotonic() - t0, len(results))
+        logger.info('text query done in %.3fs  results=%d', time.monotonic() - t0,
+                    len(results))
         return results
 
     def search_by_image(
@@ -142,15 +139,16 @@ class LocalSearchEngine:
         x = torch.sign(x) * torch.pow(torch.abs(x), 0.25)
         x /= torch.linalg.norm(x)
         results = self._query(x, frame_threshold, video_threshold, percentile)
-        logger.info('image query done in %.3fs  results=%d', time.monotonic() - t0, len(results))
+        logger.info('image query done in %.3fs  results=%d', time.monotonic() - t0,
+                    len(results))
         return results
 
     def search_by_audio(
         self,
         audio_path: str,
-        frame_threshold: float = 0.8,
+        frame_threshold: float = 0.5,
         video_threshold: float = 0.01,
-        percentile: float = 0.9,
+        percentile: float = 0.5,
     ) -> list[VideoDescription]:
         if not self._model.audio:
             raise NotImplementedError('Loaded model does not support audio queries')
@@ -160,7 +158,8 @@ class LocalSearchEngine:
         batch, _ = self._model.preprocess_audio(audio_path)
         x = self._model.process_audio(batch)[0:1]
         results = self._query(x, frame_threshold, video_threshold, percentile)
-        logger.info('audio query done in %.3fs  results=%d', time.monotonic() - t0, len(results))
+        logger.info('audio query done in %.3fs  results=%d', time.monotonic() - t0,
+                    len(results))
         return results
 
     def _query(

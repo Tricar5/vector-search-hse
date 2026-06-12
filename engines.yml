@@ -4,9 +4,9 @@ local:
   thumbnail_path: 'model/thumbnails.pkl'
   device: cpu
   text:
-    video_threshold: 0.26
+    video_threshold: 0.2
     frame_threshold: 0.2
-    percentile: 0.8
+    percentile: 0.5
 
   image:
     video_threshold: 0.30
