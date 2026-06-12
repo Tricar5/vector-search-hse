@@ -18,9 +18,9 @@ class ParametersSettings(BaseModel):
 class LocalEngineConfig(BaseModel):
     device: str = 'cpu'
     model_type: Literal['clip', 'audioclip'] = 'clip'
-    index_path: str = 'data/index.pkl'
-    metadata_path: str = 'data/metadata.pkl'
-    thumbnail_path: str = 'data/thumbnails.pkl'
+    index_path: str = 'model/index.pkl'
+    metadata_path: str = 'model/metadata.pkl'
+    thumbnail_path: str = 'model/thumbnails.pkl'
     audio_model_path: str | None = None  # path to AudioCLIP weights, required if model_type='audioclip'
     reranker_path: str | None = None
     image: ParametersSettings

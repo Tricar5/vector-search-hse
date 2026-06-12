@@ -17,11 +17,18 @@ import torchvision.transforms as TT
 from numpy._typing import NDArray
 from PIL import Image
 
+from functools import lru_cache
+
 from vs.embedder.AudioCLIP.model.audioclip import AudioCLIP
 from vs.embedder.AudioCLIP.utils.simple_tokenizer import SimpleTokenizer
 from vs.embedder.AudioCLIP.utils.transforms import ToTensor1D
 
-_tokenizer = SimpleTokenizer('data/bpe_simple_vocab_16e6.txt.gz')
+_VOCAB_PATH = 'model/bpe_simple_vocab_16e6.txt.gz'
+
+
+@lru_cache(maxsize=1)
+def _get_tokenizer() -> SimpleTokenizer:
+    return SimpleTokenizer(_VOCAB_PATH)
 
 
 # class ClipEmbedder:
@@ -139,7 +146,7 @@ class CLIPWrapper(BaseWrapper):
 
         for word in words:
             # токенизируем слово и проверяем, сколько токенов добавится
-            word_tokens = _tokenizer.encode(word)
+            word_tokens = _get_tokenizer().encode(word)
             if current_len + len(word_tokens) <= self.max_tokens:
                 current_chunk.append(word)
                 current_len += len(word_tokens)
@@ -166,7 +173,7 @@ class AudioCLIPWrapper(BaseWrapper):
         self.images = True
         self.text = True
         self.audio = True
-        self.aclp = AudioCLIP(pretrained='AudioCLIP-Full-Training.pt').to(self.device)
+        self.aclp = AudioCLIP(pretrained='model/AudioCLIP-Full-Training.pt').to(self.device)
         image_size = 224
         image_mean = (0.48145466, 0.4578275, 0.40821073)
         image_std = (0.26862954, 0.26130258, 0.27577711)
@@ -197,7 +204,7 @@ class AudioCLIPWrapper(BaseWrapper):
 
         for word in words:
             # токенизируем слово и проверяем, сколько токенов добавится
-            word_tokens = _tokenizer.encode(word)
+            word_tokens = _get_tokenizer().encode(word)
             if current_len + len(word_tokens) <= 77:  # для CLIP 77 токенов - максимум
                 current_chunk.append(word)
                 current_len += len(word_tokens)

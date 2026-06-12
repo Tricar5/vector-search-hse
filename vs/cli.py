@@ -13,6 +13,8 @@ from vs.local.pipeline import (
 from vs.utils import find_files_by_extensions
 
 app = Typer()
+download_app = Typer(help='Скачивание весов моделей и словарей.')
+app.add_typer(download_app, name='download-deps')
 
 
 @app.command(
@@ -38,9 +40,9 @@ def make_local_index(
     extensions: str = Option('mp4,mov', '--extensions', help='File Extension'),
     frame_rate: float = Option(1.0, '--frame-rate', help='Frame Rates to slice'),
     batch_size: int = Option(128, '--batch-size', help='Batch Size'),
-    index_path: str = Option('index.pkl', '--index-path', help='Path to store Index'),
+    index_path: str = Option('model/index.pkl', '--index-path', help='Path to store Index'),
     metadata_path: str = Option(
-        'metadata.pkl', '--metadata-path', help='Path to store Metadata'
+        'model/metadata.pkl', '--metadata-path', help='Path to store Metadata'
     ),
 ) -> None:
     extensions = extensions.split(',')
@@ -61,10 +63,10 @@ def make_local_index(
 )
 def make_local_index(
     metadata_path: str = Option(
-        'metadata.pkl', '--metadata-path', help='Path to store Metadata'
+        'model/metadata.pkl', '--metadata-path', help='Path to store Metadata'
     ),
     thumbnail_path: str = Option(
-        'thumbnails.pkl', '--thumbnail-path', help='Path to store Thumbnails'
+        'model/thumbnails.pkl', '--thumbnail-path', help='Path to store Thumbnails'
     ),
 ) -> None:
     local_thumbnails(
@@ -98,6 +100,59 @@ def reranker_predict(ctx: Context) -> None:
 
     sys.argv = [sys.argv[0]] + ctx.args
     predict_app()
+
+
+@download_app.command('clip', help='Скачать веса CLIP ViT-B/32.')
+def dl_clip(
+    dest_dir: str = Option('model', '--dest-dir', '-d', help='Куда сохранить'),
+) -> None:
+    from vs.download import download_clip
+
+    download_clip(dest_dir)
+
+
+@download_app.command('vocab', help='Скачать BPE-словарь (bpe_simple_vocab_16e6.txt.gz).')
+def dl_vocab(
+    dest_dir: str = Option('model', '--dest-dir', '-d', help='Куда сохранить'),
+) -> None:
+    from vs.download import download_vocab
+
+    download_vocab(dest_dir)
+
+
+@download_app.command('audioclip', help='Скачать веса AudioCLIP-Full-Training.pt.')
+def dl_audioclip(
+    dest_dir: str = Option('model', '--dest-dir', '-d', help='Куда сохранить'),
+    url: str = Option('', '--url', '-u', help='Прямая HTTP-ссылка (по умолчанию — GitHub Releases)'),
+) -> None:
+    from vs.download import download_audioclip
+
+    download_audioclip(dest_dir, url=url or None)
+
+
+@download_app.command('all', help='Скачать все зависимости: CLIP, BPE-словарь, AudioCLIP.')
+def dl_all(
+    model_dir: str = Option('model', '--model-dir', '-d', help='Папка для всех артефактов'),
+    audioclip_url: str = Option('', '--audioclip-url', help='Прямая HTTP-ссылка для AudioCLIP'),
+) -> None:
+    from vs.download import (
+        download_audioclip,
+        download_clip,
+        download_vocab,
+    )
+
+    download_clip(model_dir)
+    download_vocab(model_dir)
+    download_audioclip(model_dir, url=audioclip_url or None)
+
+
+@download_app.command('check', help='Проверить наличие всех файлов зависимостей.')
+def dl_check(
+    model_dir: str = Option('model', '--model-dir', '-d'),
+) -> None:
+    from vs.download import check_deps
+
+    check_deps(model_dir)
 
 
 if __name__ == "__main__":
