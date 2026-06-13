@@ -11,13 +11,14 @@ from prometheus_fastapi_instrumentator import (
     metrics,
 )
 
+# Each string is compiled to a regex — anchor and escape carefully.
 _EXCLUDED_HANDLERS = [
-    '/',
-    '/docs',
-    '/metrics',
-    '/openapi.json',
-    '/redoc',
-    '/favicon.ico',
+    '^/$',
+    '^/docs$',
+    '^/metrics$',
+    '^/openapi\\.json$',
+    '^/redoc$',
+    '^/favicon\\.ico$',
 ]
 
 
@@ -26,7 +27,6 @@ class DefaultMetrics:
         if instrumentator is None:
             instrumentator = Instrumentator(
                 should_group_status_codes=False,
-                should_ignore_untemplated=True,
                 excluded_handlers=_EXCLUDED_HANDLERS,
             )
         self.instrumentator = instrumentator
