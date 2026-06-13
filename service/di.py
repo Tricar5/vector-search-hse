@@ -14,6 +14,7 @@ from punq import (
 
 from service.adapters.engines.base import Engine
 from service.adapters.engines.local import LocalSearchEngine
+from service.domain.internal.metrics.collector import MetricsCollector
 from service.db.connections.postgres import Postgres
 from service.db.repositories.search import SearchRepository
 from service.services.auth_service import AuthService
@@ -24,6 +25,11 @@ from service.settings import (
 )
 
 ClassT = TypeVar('ClassT')
+
+
+def _build_metrics_collector(app_name: str) -> MetricsCollector:
+    MetricsCollector.set_app_name(app_name)
+    return MetricsCollector()
 
 
 class DI:
@@ -59,6 +65,11 @@ class DI:
         self._container.register(
             Postgres,
             factory=lambda: Postgres(settings.db),
+            scope=Scope.singleton,
+        )
+        self._container.register(
+            MetricsCollector,
+            factory=lambda: _build_metrics_collector(settings.app_name),
             scope=Scope.singleton,
         )
 
