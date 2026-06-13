@@ -33,7 +33,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "sum(rate(${namespace}_status_request_count_total{handler!~\"/|/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (handler)",
+          "expr": "sum(rate(vector_search_app_status_request_count_total{handler!~\"/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (handler)",
           "legendFormat": "{{handler}}",
           "refId": "A"
         }
@@ -55,7 +55,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "sum(rate(${namespace}_status_request_count_total{handler!~\"/|/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (status)",
+          "expr": "sum(rate(vector_search_app_status_request_count_total{handler!~\"/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (status)",
           "legendFormat": "HTTP {{status}}",
           "refId": "A"
         }
@@ -84,19 +84,19 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.50, sum(rate(${namespace}_api_request_duration_seconds_bucket{handler!~\"/|/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (le, handler))",
+          "expr": "histogram_quantile(0.50, sum(rate(vector_search_app_api_request_duration_seconds_bucket{handler!~\"/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (le, handler))",
           "legendFormat": "p50 {{handler}}",
           "refId": "A"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.95, sum(rate(${namespace}_api_request_duration_seconds_bucket{handler!~\"/|/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (le, handler))",
+          "expr": "histogram_quantile(0.95, sum(rate(vector_search_app_api_request_duration_seconds_bucket{handler!~\"/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (le, handler))",
           "legendFormat": "p95 {{handler}}",
           "refId": "B"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.99, sum(rate(${namespace}_api_request_duration_seconds_bucket{handler!~\"/|/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (le, handler))",
+          "expr": "histogram_quantile(0.99, sum(rate(vector_search_app_api_request_duration_seconds_bucket{handler!~\"/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (le, handler))",
           "legendFormat": "p99 {{handler}}",
           "refId": "C"
         }
@@ -128,7 +128,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.95, sum(rate(${namespace}_api_request_duration_seconds_bucket{handler!~\"/|/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (le, handler))",
+          "expr": "histogram_quantile(0.95, sum(rate(vector_search_app_api_request_duration_seconds_bucket{handler!~\"/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (le, handler))",
           "legendFormat": "{{handler}}",
           "refId": "A"
         }
@@ -157,13 +157,13 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.50, sum(rate(${namespace}_search_duration_seconds_bucket[$__rate_interval])) by (le, query_type))",
+          "expr": "histogram_quantile(0.50, sum(rate(vector_search_app_search_duration_seconds_bucket[$__rate_interval])) by (le, query_type))",
           "legendFormat": "p50 {{query_type}}",
           "refId": "A"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.95, sum(rate(${namespace}_search_duration_seconds_bucket[$__rate_interval])) by (le, query_type))",
+          "expr": "histogram_quantile(0.95, sum(rate(vector_search_app_search_duration_seconds_bucket[$__rate_interval])) by (le, query_type))",
           "legendFormat": "p95 {{query_type}}",
           "refId": "B"
         }
@@ -185,13 +185,13 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.50, sum(rate(${namespace}_search_results_count_seconds_bucket[$__rate_interval])) by (le, query_type))",
+          "expr": "histogram_quantile(0.50, sum(rate(vector_search_app_search_results_count_seconds_bucket[$__rate_interval])) by (le, query_type))",
           "legendFormat": "p50 {{query_type}}",
           "refId": "A"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.95, sum(rate(${namespace}_search_results_count_seconds_bucket[$__rate_interval])) by (le, query_type))",
+          "expr": "histogram_quantile(0.95, sum(rate(vector_search_app_search_results_count_seconds_bucket[$__rate_interval])) by (le, query_type))",
           "legendFormat": "p95 {{query_type}}",
           "refId": "B"
         }
@@ -213,13 +213,13 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.50, sum(rate(${namespace}_search_text_query_length_seconds_bucket[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(vector_search_app_search_text_query_length_seconds_bucket[$__rate_interval])) by (le))",
           "legendFormat": "p50 chars",
           "refId": "A"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.95, sum(rate(${namespace}_search_text_query_length_seconds_bucket[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(vector_search_app_search_text_query_length_seconds_bucket[$__rate_interval])) by (le))",
           "legendFormat": "p95 chars",
           "refId": "B"
         }
@@ -241,13 +241,13 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.50, sum(rate(${namespace}_search_text_query_tokens_seconds_bucket[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(vector_search_app_search_text_query_tokens_seconds_bucket[$__rate_interval])) by (le))",
           "legendFormat": "p50 tokens",
           "refId": "A"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "histogram_quantile(0.95, sum(rate(${namespace}_search_text_query_tokens_seconds_bucket[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(vector_search_app_search_text_query_tokens_seconds_bucket[$__rate_interval])) by (le))",
           "legendFormat": "p95 tokens",
           "refId": "B"
         }
@@ -276,13 +276,13 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "sum(rate(${namespace}_status_request_count_total{status=~\"5..\",handler!~\"/|/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (handler) / sum(rate(${namespace}_status_request_count_total{handler!~\"/|/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (handler)",
+          "expr": "sum(rate(vector_search_app_status_request_count_total{status=~\"5..\",handler!~\"/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (handler) / sum(rate(vector_search_app_status_request_count_total{handler!~\"/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (handler)",
           "legendFormat": "5xx rate {{handler}}",
           "refId": "A"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
-          "expr": "sum(rate(${namespace}_status_request_count_total{status=~\"4..\",handler!~\"/|/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (handler) / sum(rate(${namespace}_status_request_count_total{handler!~\"/|/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (handler)",
+          "expr": "sum(rate(vector_search_app_status_request_count_total{status=~\"4..\",handler!~\"/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (handler) / sum(rate(vector_search_app_status_request_count_total{handler!~\"/docs|/metrics|/openapi.json|/redoc\"}[$__rate_interval])) by (handler)",
           "legendFormat": "4xx rate {{handler}}",
           "refId": "B"
         }
