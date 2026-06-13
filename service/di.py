@@ -1,53 +1,101 @@
-from dishka import (
-    Provider,
+from pathlib import Path
+from typing import (
+    Any,
+    Callable,
+    Final,
+    Type,
+    TypeVar,
+)
+
+from punq import (
+    Container,
     Scope,
-    make_container,
-    provide,
 )
 
 from service.adapters.engines.base import Engine
 from service.adapters.engines.local import LocalSearchEngine
-from service.db.connections.base import Connector
+from service.domain.internal.metrics.collector import MetricsCollector
 from service.db.connections.postgres import Postgres
 from service.db.repositories.search import SearchRepository
-from service.domain.internal.metrics.instrumentator import MetricsInstrumentator
 from service.services.auth_service import AuthService
 from service.services.search import SearchService
 from service.settings import (
     AppSettings,
-    get_settings,
+    settings,
 )
 
-
-class AppProvider(Provider):
-
-    @provide(scope=Scope.APP)
-    def get_settings(self) -> AppSettings:
-        return get_settings()
-
-    @provide(scope=Scope.APP)
-    def get_metrics(self) -> MetricsInstrumentator:
-        return MetricsInstrumentator()
-
-    @provide(scope=Scope.APP)
-    def get_engine(self, settings: AppSettings) -> Engine:
-        return LocalSearchEngine.build_engine(settings)
-
-    @provide(scope=Scope.APP)
-    def get_connection(self, settings: AppSettings) -> Connector:
-        return Postgres(settings.db)
-
-    @provide(scope=Scope.APP)
-    def get_history_repo(self, conn: Connector) -> SearchRepository:
-        return SearchRepository(conn)
-
-    @provide(scope=Scope.APP)
-    def get_search_service(self, engine: Engine, repo: SearchRepository) -> SearchService:
-        return SearchService(engine, repo)
-
-    @provide(scope=Scope.APP)
-    def get_auth_service(self, settings: AppSettings) -> AuthService:
-        return AuthService(settings.auth)
+ClassT = TypeVar('ClassT')
 
 
-di = make_container(AppProvider())
+def _build_metrics_collector(app_name: str) -> MetricsCollector:
+    MetricsCollector.set_app_name(app_name)
+    return MetricsCollector()
+
+
+class DI:
+    def __init__(self) -> None:
+        self._container = Container()
+
+    def register_all(self, settings: AppSettings) -> 'DI':
+        self._container.register(
+            AppSettings,
+            instance=settings,
+            scope=Scope.singleton,
+        )
+        self._register_infrastructure(settings)
+        self._register_repos()
+        self._register_services(settings)
+        return self
+
+    def override(
+        self,
+        class_type: Type[ClassT],
+        **kwargs: Any,
+    ) -> None:
+        self._container.register(class_type, **kwargs)
+        self._container.resolve_all(class_type)
+
+    def resolve(self, class_type: Type[ClassT]) -> ClassT:
+        return self._container.resolve(class_type)
+
+    def provide(self, class_type: Type[ClassT]) -> Callable[[], ClassT]:
+        return lambda: self._container.resolve(class_type)
+
+    def _register_infrastructure(self, settings: AppSettings) -> None:
+        self._container.register(
+            Postgres,
+            factory=lambda: Postgres(settings.db),
+            scope=Scope.singleton,
+        )
+        self._container.register(
+            MetricsCollector,
+            factory=lambda: _build_metrics_collector(settings.app_name),
+            scope=Scope.singleton,
+        )
+
+    def _register_repos(self) -> None:
+        self._container.register(
+            SearchRepository,
+            scope=Scope.singleton,
+        )
+
+    def _register_services(self, settings: AppSettings) -> None:
+        self._container.register(
+            AuthService,
+            scope=Scope.singleton,
+        )
+        self._container.register(
+            SearchService,
+            scope=Scope.singleton,
+        )
+        self._container.register(
+            Engine,
+            factory=LocalSearchEngine.build_engine,
+            settings=settings,
+            scope=Scope.singleton,
+        )
+
+
+ROOT_PATH = Path(__file__).parent.parent
+SETTINGS_PATH = ROOT_PATH / 'settings'
+di: Final[DI] = DI().register_all(settings)

@@ -1,3 +1,6 @@
+import os
+import tempfile
+from io import BytesIO
 from typing import (
     Annotated,
     Optional,
@@ -8,14 +11,15 @@ from fastapi import (
     Depends,
     HTTPException,
     Query,
+    UploadFile,
     status,
 )
+from PIL import Image
 
 from service.di import di
 from service.domain.auth.auth import check_auth
 from service.domain.auth.token import AuthContext
 from service.domain.inference.schemas import InferenceFilters
-from service.domain.internal.errors.exc import ModelException
 from service.domain.internal.schemas import (
     BaseResponseSchema,
     ForwardRequestSchema,
@@ -26,7 +30,9 @@ from service.services.search import SearchService
 api_router = APIRouter(
     prefix='/api/v1',
     tags=['API'],
-    dependencies=[Depends(check_auth)],
+    dependencies=[
+        # Depends(check_auth)
+    ],
 )
 
 
@@ -36,16 +42,56 @@ api_router = APIRouter(
 )
 async def make_forward_predict(
     request_data: ForwardRequestSchema,
-    search_service: SearchService = Depends(lambda: di.get(SearchService)),
-    token: AuthContext = Depends(check_auth),
+    search_service: SearchService = Depends(di.provide(SearchService)),
 ) -> BaseResponseSchema:
-    try:
-        videos = await search_service.search_by_text(
-            text=request_data.query,
-            user=token.payload.user,
+    videos = await search_service.search_by_text(
+        text=request_data.query,
+        user='unknown',
+    )
+    return BaseResponseSchema(answer=videos)
+
+
+@api_router.post(
+    path='/forward/image',
+    status_code=status.HTTP_200_OK,
+)
+async def make_forward_predict_image(
+    file: UploadFile,
+    search_service: SearchService = Depends(di.provide(SearchService)),
+) -> BaseResponseSchema:
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='No file provided',
         )
-    except Exception:
-        raise ModelException('Модель не смогла обработать данные')
+    pil_img = Image.open(BytesIO(await file.read()))
+    videos = await search_service.search_by_image(pil_img, user='unknown')
+    return BaseResponseSchema(answer=videos)
+
+
+@api_router.post(
+    path='/forward/audio',
+    status_code=status.HTTP_200_OK,
+)
+async def make_forward_predict_audio(
+    file: UploadFile,
+    search_service: SearchService = Depends(di.provide(SearchService)),
+) -> BaseResponseSchema:
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='No file provided',
+        )
+    suffix = os.path.splitext(file.filename)[1] or '.wav'
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(await file.read())
+        tmp_path = tmp.name
+
+    try:
+        videos = await search_service.search_by_audio(tmp_path, user='unknown')
+    finally:
+        os.unlink(tmp_path)
+
     return BaseResponseSchema(answer=videos)
 
 
@@ -55,14 +101,13 @@ async def make_forward_predict(
 )
 async def get_historical_results(
     filters: Annotated[InferenceFilters, Query()],
-    search_service: SearchService = Depends(lambda: di.get(SearchService)),
-    token: AuthContext = Depends(check_auth),
+    search_service: SearchService = Depends(di.provide(SearchService)),
 ) -> BaseResponseSchema:
-    filters.user = token.payload.user
     history = await search_service.get_searches(filters)
     if not history:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail='Not Founded History'
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Not Founded History',
         )
     return BaseResponseSchema(answer=history)
 
@@ -73,7 +118,7 @@ async def get_historical_results(
 )
 async def delete_historical_results(
     user: Optional[str] = Query(default=None),
-    search_service: SearchService = Depends(lambda: di.get(SearchService)),
+    search_service: SearchService = Depends(di.provide(SearchService)),
     token: AuthContext = Depends(check_auth),
 ) -> BaseResponseSchema:
     if not user:

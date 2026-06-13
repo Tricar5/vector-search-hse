@@ -15,7 +15,7 @@ from pydantic import (
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from service.db.connections.base import Connector
+from service.db.connections.postgres import Postgres
 from service.db.models.base import Base
 
 
@@ -33,7 +33,7 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, SchemaType]):
     input_entity_schema: Type[CreateSchemaType]
     entity_schema: Type[SchemaType]
 
-    def __init__(self, conn: Connector) -> None:
+    def __init__(self, conn: Postgres) -> None:
         """Repository object with default methods to CRUD."""
         self.session_factory = conn.session
 

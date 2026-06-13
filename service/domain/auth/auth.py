@@ -30,7 +30,7 @@ def check_auth(
         Optional[HTTPAuthorizationCredentials],
         Depends(AUTH_HEADER),
     ],
-    auth_service: Annotated[AuthService, Depends(lambda: di.get(AuthService))],
+    auth_service: Annotated[AuthService, Depends(di.provide(AuthService))],
 ) -> AuthContext:
     try:
         token_context = CTX_AUTH_USER.get()
