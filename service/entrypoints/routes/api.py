@@ -102,13 +102,12 @@ async def make_forward_predict_audio(
 async def get_historical_results(
     filters: Annotated[InferenceFilters, Query()],
     search_service: SearchService = Depends(di.provide(SearchService)),
-    token: AuthContext = Depends(check_auth),
 ) -> BaseResponseSchema:
-    filters.user = token.payload.user
     history = await search_service.get_searches(filters)
     if not history:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail='Not Founded History'
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail='Not Founded History',
         )
     return BaseResponseSchema(answer=history)
 

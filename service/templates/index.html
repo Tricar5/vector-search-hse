@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vector Video Search</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f7f7f7;
+            margin: 0;
+            padding: 20px;
+        }
+        h2 { margin-top: 0; }
+        .forms-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        form {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            width: 280px;
+        }
+        input[type="file"],
+        input[type="text"] {
+            width: 100%;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+        input[type="submit"] {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        input[type="submit"]:hover { background: #45a049; }
+        .gallery {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 30px;
+        }
+        .gallery-item {
+            position: relative;
+        }
+        .gallery img {
+            width: 200px;
+            height: 300px;
+            object-fit: cover;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            cursor: pointer;
+        }
+        .gallery p {
+            margin: 4px 0;
+            font-size: 12px;
+            color: #555;
+            text-align: center;
+        }
+        .rel-checkbox {
+            display: block;
+            text-align: center;
+            font-size: 12px;
+            margin-top: 2px;
+        }
+        #imgModal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        #imgModal img {
+            max-width: 90%; max-height: 90%;
+            object-fit: contain;
+            border-radius: 8px;
+            display: none;
+        }
+        #imgModal video {
+            max-width: 90%; max-height: 90%;
+            object-fit: contain;
+            border-radius: 8px;
+            display: none;
+        }
+        #csvBtn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            display: none;
+        }
+        #csvBtn:hover { background: #1976D2; }
+        .orig-query {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="forms-row">
+        <form action="/load_image" method="POST" enctype="multipart/form-data">
+            <h2>Search by Image</h2>
+            <input type="file" name="file" accept="image/*" required />
+            <input type="submit" value="Search" />
+        </form>
+
+        <form action="/load_text" method="POST" enctype="multipart/form-data">
+            <h2>Search by Text</h2>
+            <input type="text" name="text" placeholder="Enter query..." required />
+            <input type="submit" value="Search" />
+        </form>
+
+        <form action="/load_audio" method="POST" enctype="multipart/form-data">
+            <h2>Search by Audio</h2>
+            <input type="file" name="file" accept="audio/*,video/*" required />
+            <input type="submit" value="Search" />
+        </form>
+    </div>
+
+    {% if orig_data %}
+    <p class="orig-query">Query: <strong>{{ orig_data }}</strong></p>
+    {% endif %}
+
+    {% if frames %}
+    <button id="csvBtn" onclick="downloadCSV()">Download CSV</button>
+    {% endif %}
+
+    <form id="csvForm" action="/download_csv" method="POST" style="display:none;">
+        <input type="hidden" name="orig_data" value="{{ orig_data or 'results' }}" />
+        <input type="hidden" name="len" value="{{ frames | length }}" />
+        {% for key, img, fps in frames %}
+        {% set loop_idx = loop.index %}
+        <input type="hidden" name="{{ loop_idx }}_stats"
+               value="{{ {'max': used_videos[key][2], 'mean': 0, 'std': 0, 'perc_90': 0, 'num_passed': 0, 'range': 0} }}" />
+        {% endfor %}
+    </form>
+
+    <div class="gallery">
+        {% for key, img, fps in frames %}
+        {% set loop_idx = loop.index %}
+        <div class="gallery-item">
+            <img
+                src="{{ img }}&thumbnail_size=240"
+                data-image-path="{{ img }}"
+                data-video-path="{{ key }}"
+                data-frame-start="{{ used_videos[key][0] }}"
+                data-frame-end="{{ used_videos[key][1] }}"
+                data-fps="{{ fps }}"
+            />
+            <p>score: {{ "%.4f" | format(used_videos[key][2]) }}</p>
+            <label class="rel-checkbox">
+                <input type="checkbox" name="{{ loop_idx }}_rel" form="csvForm" /> relevant
+            </label>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div id="imgModal">
+        <video id="modalVideo" controls preload="none" style="display:none;" onloadstart="this.volume=0.1"></video>
+        <img id="modalImg" />
+    </div>
+
+    <script>
+        const modal = document.getElementById('imgModal');
+        const modalImg = document.getElementById('modalImg');
+        const modalVideo = document.getElementById('modalVideo');
+
+        document.querySelectorAll('.gallery img').forEach(img => {
+            img.addEventListener('click', () => {
+                const fps = parseFloat(img.dataset.fps);
+                const path = img.dataset.videoPath;
+                const fs = img.dataset.frameStart;
+                const fe = img.dataset.frameEnd;
+                const imgpath = img.dataset.imagePath;
+
+                modal.style.display = 'flex';
+
+                if (fps !== -1 && fs !== fe) {
+                    modalImg.style.display = 'none';
+                    modalVideo.style.display = 'block';
+                    modalVideo.src =
+                        `/video_segment?path=${encodeURIComponent(path)}&frame_start=${fs}&frame_end=${fe}&fps=${fps}`;
+                    modalVideo.load();
+                    modalVideo.play();
+                } else {
+                    modalVideo.pause();
+                    modalVideo.src = '';
+                    modalVideo.style.display = 'none';
+                    modalImg.style.display = 'block';
+                    modalImg.src = imgpath;
+                }
+            });
+        });
+
+        modal.addEventListener('click', e => {
+            if (e.target === modal) {
+                modalVideo.pause();
+                modalVideo.src = '';
+                modalVideo.style.display = 'none';
+                modalImg.style.display = 'none';
+                modal.style.display = 'none';
+            }
+        });
+
+        function downloadCSV() {
+            document.getElementById('csvBtn').style.display = 'block';
+            document.getElementById('csvForm').submit();
+        }
+
+        {% if frames %}
+        document.getElementById('csvBtn').style.display = 'inline-block';
+        {% endif %}
+    </script>
+</body>
+</html>

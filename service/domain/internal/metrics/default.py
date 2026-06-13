@@ -1,4 +1,3 @@
-# flake8: noqa: WPS339
 from typing import (
     Callable,
     List,
@@ -12,18 +11,35 @@ from prometheus_fastapi_instrumentator import (
     metrics,
 )
 
+_EXCLUDED_HANDLERS = [
+    '/',
+    '/docs',
+    '/metrics',
+    '/openapi.json',
+    '/redoc',
+    '/favicon.ico',
+]
 
-class MetricsInstrumentator:
+
+class DefaultMetrics:
     def __init__(self, instrumentator: Optional[Instrumentator] = None) -> None:
         if instrumentator is None:
-            instrumentator = Instrumentator(should_group_status_codes=False)
+            instrumentator = Instrumentator(
+                should_group_status_codes=False,
+                should_ignore_untemplated=True,
+                excluded_handlers=_EXCLUDED_HANDLERS,
+            )
         self.instrumentator = instrumentator
 
     def setup(self, app: FastAPI, app_name: str) -> None:
         default_metrics = self._set_default_metrics(app_name=app_name)
         for metric in default_metrics:
             self.instrumentator.add(metric)
-        self.instrumentator.instrument(app=app).expose(app=app, endpoint='/stats')
+        self.instrumentator.instrument(app=app).expose(
+            app=app,
+            endpoint='/metrics',
+            include_in_schema=False,
+        )
 
     def _set_default_metrics(
         self,
@@ -35,14 +51,6 @@ class MetricsInstrumentator:
                 metric_namespace=app_name,
                 should_include_method=True,
                 should_include_status=True,
-                buckets=(
-                    0.05,
-                    0.25,
-                    0.50,
-                    0.75,
-                    0.95,
-                    0.99,
-                ),
             ),
             metrics.requests(
                 metric_name='status_request_count',
